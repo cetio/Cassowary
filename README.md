@@ -11,24 +11,24 @@ The primary goals of Cassowary are:
 
 ## Current Clr Structures
 
-- **FieldDesc**: Access and manipulate fields within Clr structures.
-- **MethodDesc**: Explore and work with methods in Clr.
-- **MethodDescChunk**: Handle method chunks in Clr structures.
-- **MethodTable**: Perform operations related to method tables, including object allocation, instance construction, initialization, casts, boxing, and more.
-- **NativeCodeVersion**: Work with native code versions in Clr.
-- **Stub**: Access and manage stubs within Clr.
-- **UMThunkMarshInfo**: Interact with UMThunkMarshInfo structures.
-- **WriteableData**: Handle writable data within Clr.
-- **ArrayClass**: Deal with array classes in Clr.
-- **CCWTemplate**: Manipulate CCWTemplate structures.
-- **DelegateEEClass**: Perform operations on DelegateEEClass.
-- **EEClassLayoutInfo**: Explore layout information for EEClass.
-- **EEClassNativeLayoutInfo**: Work with native layout information for EEClass.
-- **EEClassOptionalFields**: Access optional fields in EEClass.
-- **GuidInfo**: Manage GUID information within Clr.
-- **LayoutEEClass**: Handle layout information for EEClass.
-- **NativeFieldDescriptor**: Work with descriptors for native fields.
-- **SparseVTableMap**: Interact with sparse v-table maps.
+- **FieldDesc**: Low-level structure similar to a FieldInfo, stored in EEClass.
+- **MethodDesc**: Low-level structure similar to a MethodInfo, stored in EEClass.
+- **MethodDescChunk**: Groups of MethodDescs.
+- **MethodTable**: Base structure of a Type, with various functions, like object allocation, instance construction, initialization, casts, boxing, and more.
+- **NativeCodeVersion**: This is just a small MethodDesc metadata.
+- **Stub**: Thin version of a MethodDesc, used by Delegates.
+- **UMThunkMarshInfo**: Marshalling info for MethodDescs.
+- **WriteableData**: MethodTable extra writeable data and flags.
+- **ArrayClass**: Base EEClass of array types.
+- **CCWTemplate**: COM information for types that are exposed to COM.
+- **DelegateEEClass**: Base EEClass of delegate types, including Stubs and UMThunkMarshInfo.
+- **EEClassLayoutInfo**: Layout information for an EEClass.
+- **EEClassNativeLayoutInfo**: Optional native layout information for an EEClass.
+- **EEClassOptionalFields**: Optional field storage for EEClass.
+- **GuidInfo**: Type GUIDs.
+- **LayoutEEClass**: Contains both EEClassLayoutInfo and EEClassNativeLayoutInfo.
+- **NativeFieldDescriptor**: Optional EEClass native field descriptors and iterators.
+- **SparseVTableMap**: VTable map contained in EEClassOptionalFields.
 
 ## License
 
