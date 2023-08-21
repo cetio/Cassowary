@@ -61,32 +61,68 @@ namespace Cassowary.Intrinsics.VM
         [FieldOffset(12)]
         private readonly uint LayoutBitfield;
 
-        public uint MB => MetadataBitfield & ((1 << 24) - 1); // m_mb
+        public uint MB // m_mb
+        {
+            get
+            {
+                return MetadataBitfield & ((1 << 24) - 1);
+            }
+        }
 
         /// <summary>
         /// Is this field static?
         /// </summary>
-        public bool IsStatic => ((MetadataBitfield >> 24) & ((1 << 1) - 1)) == 1; // m_isStatic
+        public bool IsStatic // m_isStatic
+        {
+            get
+            {
+                return ((MetadataBitfield >> 24) & ((1 << 1) - 1)) == 1;
+            }
+        }
 
         /// <summary>
         /// Is this field special static on its thread?
         /// </summary>
-        public bool IsThreadLocal => ((MetadataBitfield >> 25) & ((1 << 1) - 1)) == 1; // m_isThreadLocal
+        public bool IsThreadLocal // m_isThreadLocal
+        {
+            get
+            {
+                return ((MetadataBitfield >> 25) & ((1 << 1) - 1)) == 1;
+            }
+        }
 
         /// <summary>
         /// Is this field a PE RVA field?
         /// </summary>
-        public bool IsRVA => ((MetadataBitfield >> 26) & ((1 << 1) - 1)) == 1; // m_isRVA
+        public bool IsRVA // m_isRVA
+        {
+            get
+            {
+                return ((MetadataBitfield >> 26) & ((1 << 1) - 1)) == 1;
+            }
+        }
 
         /// <summary>
         /// Protection of this field.
         /// </summary>
-        public ProtectionAttribute ProtectionAttribute => (ProtectionAttribute)((MetadataBitfield >> 27) & ((1 << 3) - 1)); // m_prot
+        public ProtectionAttribute ProtectionAttribute // m_prot
+        {
+            get
+            {
+                return (ProtectionAttribute)((MetadataBitfield >> 27) & ((1 << 3) - 1));
+            }
+        }
 
         /// <summary>
         /// Offset is a byte offset from an instance pointer if !IsStatic, otherwise it is an RVA field offset.
         /// </summary>
-        public uint Offset => LayoutBitfield & ((1 << 27) - 1); // m_dwOffset
+        public uint Offset // m_dwOffset
+        {
+            get
+            {
+                return LayoutBitfield & ((1 << 27) - 1);
+            }
+        }
 
         // Temporary values stored in FieldDesc m_dwOffset during loading
         // The high 5 bits must be zero (because in field.h we steal them for other uses), so we must choose values > 0
@@ -101,29 +137,101 @@ namespace Cassowary.Intrinsics.VM
         internal const int FIELD_OFFSET_BIG_RVA = FIELD_OFFSET_MAX - 5;
         internal const int FIELD_OFFSET_LAST_REAL_OFFSET = FIELD_OFFSET_MAX - 6;    // real fields have to be smaller than this
 
-        public CorElementType CorElementType => (CorElementType)((LayoutBitfield >> 27) & ((1 << 5) - 1)); // m_type
+        public CorElementType CorElementType // m_type
+        {
+            get
+            {
+                return (CorElementType)((LayoutBitfield >> 27) & ((1 << 5) - 1));
+            }
+        }
 
-        public CorTokenType CorTokenType => (CorTokenType)(MB | (int)CorTokenType.mdtFieldDef);
+        public CorTokenType CorTokenType
+        {
+            get
+            {
+                return (CorTokenType)(MB | (int)CorTokenType.mdtFieldDef);
+            }
+        }
 
-        public bool IsPrivate => ProtectionAttribute.HasFlag(ProtectionAttribute.Private);
+        public bool IsPrivate
+        {
+            get
+            {
+                return ProtectionAttribute.HasFlag(ProtectionAttribute.Private);
+            }
+        }
 
-        public bool IsPrivateProtected => ProtectionAttribute.HasFlag(ProtectionAttribute.PrivateProtected);
+        public bool IsPrivateProtected
+        {
+            get
+            {
+                return ProtectionAttribute.HasFlag(ProtectionAttribute.PrivateProtected);
+            }
+        }
 
-        public bool IsInternal => ProtectionAttribute.HasFlag(ProtectionAttribute.Internal);
+        public bool IsInternal
+        {
+            get
+            {
+                return ProtectionAttribute.HasFlag(ProtectionAttribute.Internal);
+            }
+        }
 
-        public bool IsProtected => ProtectionAttribute.HasFlag(ProtectionAttribute.Protected);
+        public bool IsProtected
+        {
+            get
+            {
+                return ProtectionAttribute.HasFlag(ProtectionAttribute.Protected);
+            }
+        }
 
-        public bool IsProtectedInternal => ProtectionAttribute.HasFlag(ProtectionAttribute.ProtectedInternal);
+        public bool IsProtectedInternal
+        {
+            get
+            {
+                return ProtectionAttribute.HasFlag(ProtectionAttribute.ProtectedInternal);
+            }
+        }
 
-        public bool IsPublic => ProtectionAttribute.HasFlag(ProtectionAttribute.Public);
+        public bool IsPublic
+        {
+            get
+            {
+                return ProtectionAttribute.HasFlag(ProtectionAttribute.Public);
+            }
+        }
 
-        public bool IsUnplaced => Offset == FIELD_OFFSET_UNPLACED;
+        public bool IsUnplaced
+        {
+            get
+            {
+                return Offset == FIELD_OFFSET_UNPLACED;
+            }
+        }
 
-        public bool IsUnplacedGCPTR => Offset == FIELD_OFFSET_UNPLACED_GC_PTR;
+        public bool IsUnplacedGCPTR
+        {
+            get
+            {
+                return Offset == FIELD_OFFSET_UNPLACED_GC_PTR;
+            }
+        }
 
-        public bool IsEnCNew => Offset == FIELD_OFFSET_NEW_ENC;
+        public bool IsEnCNew
+        {
+            get
+            {
+                return Offset == FIELD_OFFSET_NEW_ENC;
+            }
+        }
 
-        public bool IsBigRVA => Offset == FIELD_OFFSET_BIG_RVA;
+        public bool IsBigRVA
+        {
+            get
+            {
+                return Offset == FIELD_OFFSET_BIG_RVA;
+            }
+        }
 
         internal RuntimeFieldHandle RuntimeFieldHandle
         {
@@ -141,7 +249,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return ApproxDeclaringMethodTable->RootCanonTable();
+                return ApproxDeclaringMethodTable->GetRootCanonTable();
             }
         }
 

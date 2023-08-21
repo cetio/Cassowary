@@ -150,6 +150,26 @@ namespace Cassowary.Intrinsics
         }
 
         /// <summary>
+        /// Destroys an object, wiping all of its bytes and allowing it to be safely modified or reconstructed.
+        /// </summary>
+        /// <param name="obj">The object to be destroyed.</param>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public static void Destroy(object obj)
+        {
+            MethodTable* pMT = GetMethodTable(obj);
+
+            if (pMT->IsStringOrArray)
+            {
+                // Strings and Arrays have length fields at offset 0, overwriting that can have catastrophic effects.
+                NativeMemory.Clear(Unsafe.Add(GetPointer(obj), 8), (nuint)pMT->BaseSize - 8);
+            }
+            else
+            {
+                NativeMemory.Clear(GetPointer(obj), (nuint)pMT->BaseSize);
+            }
+        }
+
+        /// <summary>
         /// Gets the heap data for the specified object.
         /// </summary>
         /// <param name="obj">The object to get the heap data for.</param>

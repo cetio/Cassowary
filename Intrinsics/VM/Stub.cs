@@ -52,16 +52,52 @@ namespace Cassowary.Intrinsics.VM
         [FieldOffset(6)]
         public readonly MethodDesc* InstantiatedMethod; // InstantiatedMethod
 
-        public bool IsMulticastDelegate => CodeFlags.HasFlag(StubCodeFlags.MULTICAST_DELEGATE_BIT);
+        public bool IsMulticastDelegate
+        {
+            get
+            {
+                return CodeFlags.HasFlag(StubCodeFlags.MULTICAST_DELEGATE_BIT);
+            }
+        }
 
-        public bool HasExternalEntryPoint => CodeFlags.HasFlag(StubCodeFlags.EXTERNAL_ENTRY_BIT);
+        public bool HasExternalEntryPoint
+        {
+            get
+            {
+                return CodeFlags.HasFlag(StubCodeFlags.EXTERNAL_ENTRY_BIT);
+            }
+        }
 
-        public bool IsLoaderHeap => CodeFlags.HasFlag(StubCodeFlags.LOADER_HEAP_BIT);
+        public bool IsLoaderHeap
+        {
+            get
+            {
+                return CodeFlags.HasFlag(StubCodeFlags.LOADER_HEAP_BIT);
+            }
+        }
 
-        public bool IsIntantiatingStub => CodeFlags.HasFlag(StubCodeFlags.INSTANTIATING_STUB_BIT);
+        public bool IsIntantiatingStub
+        {
+            get
+            {
+                return CodeFlags.HasFlag(StubCodeFlags.INSTANTIATING_STUB_BIT);
+            }
+        }
 
-        public bool HasUnwindInfo => CodeFlags.HasFlag(StubCodeFlags.UNWIND_INFO_BIT);
+        public bool HasUnwindInfo
+        {
+            get
+            {
+                return CodeFlags.HasFlag(StubCodeFlags.UNWIND_INFO_BIT);
+            }
+        }
 
-        public bool HasThunk => CodeFlags.HasFlag(StubCodeFlags.THUNK_BIT);
+        public bool HasThunk
+        {
+            get
+            {
+                return CodeFlags.HasFlag(StubCodeFlags.THUNK_BIT);
+            }
+        }
     }
 }

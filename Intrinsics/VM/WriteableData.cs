@@ -47,22 +47,76 @@ namespace Cassowary.Intrinsics.VM
         //[FieldOffset(4)]
         //public readonly RuntimeTypeHandle m_hExposedClassObject;
 
-        public bool IsUnrestored => TableFlags.HasFlag(TableFlags.Unrestored);
+        public bool IsUnrestored
+        {
+            get
+            {
+                return TableFlags.HasFlag(TableFlags.Unrestored);
+            }
+        }
 
-        public bool HasApproxParent => TableFlags.HasFlag(TableFlags.HasApproxParent);
+        public bool HasApproxParent
+        {
+            get
+            {
+                return TableFlags.HasFlag(TableFlags.HasApproxParent);
+            }
+        }
 
-        public bool HasUnrestoredTypeKey => TableFlags.HasFlag(TableFlags.UnrestoredTypeKey);
+        public bool HasUnrestoredTypeKey
+        {
+            get
+            {
+                return TableFlags.HasFlag(TableFlags.UnrestoredTypeKey);
+            }
+        }
 
-        public bool IsNotFullyLoaded => TableFlags.HasFlag(TableFlags.IsNotFullyLoaded);
+        public bool IsNotFullyLoaded
+        {
+            get
+            {
+                return TableFlags.HasFlag(TableFlags.IsNotFullyLoaded);
+            }
+        }
 
-        public bool DependenciesLoaded => TableFlags.HasFlag(TableFlags.DependenciesLoaded);
+        public bool DependenciesLoaded
+        {
+            get
+            {
+                return TableFlags.HasFlag(TableFlags.DependenciesLoaded);
+            }
+        }
 
-        public bool CanCompareBitsOrUseFastGetHashCode => TableFlags.HasFlag(TableFlags.CanCompareBitsOrUseFastGetHashCode);
+        public bool CanCompareBitsOrUseFastGetHashCode
+        {
+            get
+            {
+                return TableFlags.HasFlag(TableFlags.CanCompareBitsOrUseFastGetHashCode);
+            }
+        }
 
-        public bool HasCheckedCanCompareBitsOrUseFastGetHashCode => TableFlags.HasFlag(TableFlags.HasCheckedCanCompareBitsOrUseFastGetHashCode);
+        public bool HasCheckedCanCompareBitsOrUseFastGetHashCode
+        {
+            get
+            {
+                return TableFlags.HasFlag(TableFlags.HasCheckedCanCompareBitsOrUseFastGetHashCode);
+            }
+        }
 
-        public bool ParentMethodTablePointerValid => TableFlags.HasFlag(TableFlags.ParentMethodTablePointerValid);
+        public bool ParentMethodTablePointerValid
+        {
+            get
+            {
+                return TableFlags.HasFlag(TableFlags.ParentMethodTablePointerValid);
+            }
+        }
 
-        public bool HasInjectedInterfaceDuplicates => TableFlags.HasFlag(TableFlags.HasInjectedInterfaceDuplicates);
+        public bool HasInjectedInterfaceDuplicates
+        {
+            get
+            {
+                return TableFlags.HasFlag(TableFlags.HasInjectedInterfaceDuplicates);
+            }
+        }
     }
 }

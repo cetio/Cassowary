@@ -18,6 +18,7 @@ using Cassowary.Attributes;
 using Cassowary.Intrinsics.VM.Cor;
 using JetBrains.Annotations;
 using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting;
@@ -129,7 +130,7 @@ namespace Cassowary.Intrinsics.VM.EE
 #pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 
         [FieldOffset(40)]
-        public readonly CorInterfaceType ComInterfaceType; // m_ComInterfaceType
+        public readonly CorInterfaceType CorInterfaceType; // m_ComInterfaceType
 
         /// <summary>
         /// Contains the CCWTemplate if the EEClass is associated with a COM Visible type.
@@ -145,7 +146,7 @@ namespace Cassowary.Intrinsics.VM.EE
         public readonly VMFlags VMFlags; // m_VMFlags
 
         [FieldOffset(64)]
-        private readonly CorElementType CorElementType; // m_NormType
+        public readonly CorElementType CorElementType; // m_NormType
 
         [FieldOffset(65)]
         public readonly bool FieldsArePacked; // m_fFieldsArePacked
@@ -239,7 +240,13 @@ namespace Cassowary.Intrinsics.VM.EE
         /// <summary>
         /// EEClasses only contain a GuidInfo if it is associated with an Interface.
         /// </summary>
-        public bool HasGuidInfo => NoGuid && MethodTable->IsInterfaceWithGuidInfo;
+        public bool HasGuidInfo
+        {
+            get
+            {
+                return !NoGuid && MethodTable->IsInterfaceWithGuidInfo;
+            }
+        }
 
         /// <summary>
         /// EEClasses only contain Optional Fields if specified so by the associated type.
@@ -263,141 +270,315 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
-        public bool HasArrayDesc => MethodTable->HasArrayDesc;
+        public bool HasArrayDesc
+        {
+            get
+            {
+                return MethodTable->HasArrayDesc;
+            }
+        }
 
-        public bool HasArrayClass => CorElementType == CorElementType.ELEMENT_TYPE_ARRAY || CorElementType == CorElementType.ELEMENT_TYPE_SZARRAY;
+        public bool HasArrayClass
+        {
+            get
+            {
+                return CorElementType == CorElementType.ELEMENT_TYPE_ARRAY || CorElementType == CorElementType.ELEMENT_TYPE_SZARRAY;
+            }
+        }
 
-        public bool IsPrimitive => Intrinsics.CorIsPrimitiveType(CorElementType);
+        public bool IsPrimitive
+        {
+            get
+            {
+                return Intrinsics.CorIsPrimitiveType(CorElementType);
+            }
+        }
 
         /// <summary>
         /// Checks if the class layout depends on other modules.
         /// </summary>
-        public bool LayoutDependsOnOtherModules => (VMFlags & VMFlags.LayoutDependsOnOtherModules) != 0;
+        public bool LayoutDependsOnOtherModules
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.LayoutDependsOnOtherModules);
+            }
+        }
 
         /// <summary>
         /// Checks if the class is a delegate.
         /// </summary>
-        public bool IsDelegate => (VMFlags & VMFlags.Delegate) != 0;
+        public bool IsDelegate
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.Delegate);
+            }
+        }
 
         /// <summary>
         /// Checks if value type statics in this class will be pinned.
         /// </summary>
-        public bool FixedAddressVtStatics => (VMFlags & VMFlags.FixedAddressVtStatics) != 0;
+        public bool FixedAddressVtStatics
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.FixedAddressVtStatics);
+            }
+        }
 
         /// <summary>
         /// Checks if the class has layout information.
         /// </summary>
-        public bool HasLayout => (VMFlags & VMFlags.HasLayout) != 0;
+        public bool HasLayout
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.HasLayout);
+            }
+        }
 
         /// <summary>
         /// Checks if the class is nested.
         /// </summary>
-        public bool IsNested => (VMFlags & VMFlags.IsNested) != 0;
+        public bool IsNested
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.IsNested);
+            }
+        }
 
         /// <summary>
         /// Checks if the class is an equivalent type.
         /// </summary>
-        public bool IsEquivalentType => (VMFlags & VMFlags.IsEquivalentType) != 0;
+        public bool IsEquivalentType
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.IsEquivalentType);
+            }
+        }
 
         /// <summary>
         /// Checks if the class has overlayed fields.
         /// </summary>
-        public bool HasOverlayedFields => (VMFlags & VMFlags.HasOverlayedFields) != 0;
+        public bool HasOverlayedFields
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.HasOverlayedFields);
+            }
+        }
 
         /// <summary>
         /// Checks if the class has fields which must be explicitly initialized in a constructor.
         /// </summary>
-        public bool HasFieldsWhichMustBeInited => (VMFlags & VMFlags.HasFieldsWhichMustBeInited) != 0;
+        public bool HasFieldsWhichMustBeInited
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.HasFieldsWhichMustBeInited);
+            }
+        }
 
         /// <summary>
         /// Checks if the class is an unsafe value type.
         /// </summary>
-        public bool UnsafeValueType => (VMFlags & VMFlags.UnsafeValueType) != 0;
+        public bool UnsafeValueType
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.UnsafeValueType);
+            }
+        }
 
         /// <summary>
         /// Checks if the BestFitMapping and ThrowOnUnmappableChar values are initialized.
         /// </summary>
-        public bool BestFitMappingInited => (VMFlags & VMFlags.BestFitMappingInited) != 0;
+        public bool BestFitMappingInited
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.BestFitMappingInited);
+            }
+        }
 
         /// <summary>
         /// Checks if the BestFitMapping is enabled.
         /// </summary>
-        public bool BestFitMapping => (VMFlags & VMFlags.BestFitMapping) != 0;
+        public bool BestFitMapping
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.BestFitMapping);
+            }
+        }
 
         /// <summary>
         /// Checks if ThrowOnUnmappableChar is enabled.
         /// </summary>
-        public bool ThrowOnUnmappableChar => (VMFlags & VMFlags.ThrowOnUnmappableChar) != 0;
+        public bool ThrowOnUnmappableChar
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.ThrowOnUnmappableChar);
+            }
+        }
 
         /// <summary>
         /// Checks if the class has no Guid.
         /// </summary>
-        public bool NoGuid => (VMFlags & VMFlags.NoGuid) != 0;
+        public bool NoGuid
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.NoGuid);
+            }
+        }
 
         /// <summary>
         /// Checks if the class has non-public fields.
         /// </summary>
-        public bool HasNonPublicFields => (VMFlags & VMFlags.HasNonPublicFields) != 0;
+        public bool HasNonPublicField
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.HasNonPublicFields);
+            }
+        }
 
         /// <summary>
         /// Checks if the class contains a stack pointer.
         /// </summary>
-        public bool ContainsStackPtr => (VMFlags & VMFlags.ContainsStackPtr) != 0;
+        public bool ContainsStackPtr
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.ContainsStackPtr);
+            }
+        }
 
         /// <summary>
         /// Checks if the class would like to have 8-byte alignment.
         /// </summary>
-        public bool PreferAlign8 => (VMFlags & VMFlags.PreferAlign8) != 0;
+        public bool PreferAlign8
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.PreferAlign8);
+            }
+        }
 
         /// <summary>
         /// Checks if the class is sparse for COM interop.
         /// </summary>
-        public bool SparseForCominterop => (VMFlags & VMFlags.SparseForCominterop) != 0;
+        public bool SparseForCominterop
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.SparseForCominterop);
+            }
+        }
 
         /// <summary>
         /// Checks if the class has a CoClass attribute.
         /// </summary>
-        public bool HasCoClassAttrib => (VMFlags & VMFlags.HasCoClassAttrib) != 0;
+        public bool HasCoClassAttrib
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.HasCoClassAttrib);
+            }
+        }
 
         /// <summary>
         /// Checks if the class is a COM event interface.
         /// </summary>
-        public bool IsComEventItf => (VMFlags & VMFlags.ComEventItfMask) != 0;
+        public bool IsComEventItf
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.ComEventItfMask);
+            }
+        }
 
         /// <summary>
         /// Checks if the class is projected from WinRT.
         /// </summary>
-        public bool IsProjectedFromWinRT => (VMFlags & VMFlags.ProjectedFromWinRT) != 0;
+        public bool IsProjectedFromWinRT
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.ProjectedFromWinRT);
+            }
+        }
 
         /// <summary>
         /// Checks if the class is exported to WinRT.
         /// </summary>
-        public bool IsExportedToWinRT => (VMFlags & VMFlags.ExportedToWinRT) != 0;
+        public bool IsExportedToWinRT
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.ExportedToWinRT);
+            }
+        }
 
         /// <summary>
         /// Checks if the class is not tightly packed.
         /// </summary>
-        public bool NotTightlyPacked => (VMFlags & VMFlags.NotTightlyPacked) != 0;
+        public bool NotTightlyPacked
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.NotTightlyPacked);
+            }
+        }
 
         /// <summary>
         /// Checks if the class contains method implementations.
         /// </summary>
-        public bool ContainsMethodImpls => (VMFlags & VMFlags.ContainsMethodImpls) != 0;
+        public bool ContainsMethodImpls
+        {
+            get
+            {
+                return VMFlags.HasFlag(VMFlags.ContainsMethodImpls);
+            }
+        }
 
         /// <summary>
         /// Checks if the marshaling type of the class is Inhibit.
         /// </summary>
-        public bool IsMarshalingTypeInhibit => (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeInhibit;
+        public bool IsMarshalingTypeInhibit
+        {
+            get
+            {
+                return (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeInhibit;
+            }
+        }
 
         /// <summary>
         /// Checks if the marshaling type of the class is FreeThreaded.
         /// </summary>
-        public bool IsMarshalingTypeFreeThreaded => (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeFreeThreaded;
+        public bool IsMarshalingTypeFreeThreaded
+        {
+            get
+            {
+                return (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeFreeThreaded;
+            }
+        }
 
         /// <summary>
         /// Checks if the marshaling type of the class is Standard.
         /// </summary>
-        public bool IsMarshalingTypeStandard => (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeStandard;
+        public bool IsMarshalingTypeStandard
+        {
+            get
+            {
+                return (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeStandard;
+            }
+        }
 
         public int FieldCount
         {

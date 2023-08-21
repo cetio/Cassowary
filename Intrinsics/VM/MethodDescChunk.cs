@@ -56,8 +56,20 @@ namespace Cassowary.Intrinsics.VM
 
         // An array of MethodDesc* is supposed to go here, but I can't get it to work so I don't care.
 
-        public bool HasTokenRangeMask => (ChunkFlags & ChunkFlags.TokenRangeMask) != 0;
+        public bool HasTokenRangeMask
+        {
+            get
+            {
+                return ChunkFlags.HasFlag(ChunkFlags.TokenRangeMask);
+            }
+        }
 
-        public bool HasCompactEntryPoints => (ChunkFlags & ChunkFlags.HasCompactEntryPoints) != 0;
+        public bool HasCompactEntryPoints
+        {
+            get
+            {
+                return ChunkFlags.HasFlag(ChunkFlags.HasCompactEntryPoints);
+            }
+        }
     }
 }

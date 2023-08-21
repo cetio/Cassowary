@@ -63,20 +63,68 @@ namespace Cassowary.Intrinsics.VM.EE
         [FieldOffset(12)]
         public NativeFieldCategory Category; // m_category
 
-        public MethodTable NestedType => TypeAndCount.NestedType;
+        public MethodTable NestedType
+        {
+            get
+            {
+                return TypeAndCount.NestedType;
+            }
+        }
 
-        public uint NumElements => TypeAndCount.NumElements;
+        public uint NumElements
+        {
+            get
+            {
+                return TypeAndCount.NumElements;
+            }
+        }
 
-        public uint NativeSize => SizeAndAlignment.NativeSize;
+        public uint NativeSize
+        {
+            get
+            {
+                return SizeAndAlignment.NativeSize;
+            }
+        }
 
-        public uint AlignmentRequirement => SizeAndAlignment.AlignmentRequirement;
+        public uint AlignmentRequirement
+        {
+            get
+            {
+                return SizeAndAlignment.AlignmentRequirement;
+            }
+        }
 
-        public bool IsFloat => Category == NativeFieldCategory.FLOAT;
+        public bool IsFloat
+        {
+            get
+            {
+                return Category == NativeFieldCategory.FLOAT;
+            }
+        }
 
-        public bool IsNested => Category == NativeFieldCategory.NESTED;
+        public bool IsNested
+        {
+            get
+            {
+                return Category == NativeFieldCategory.NESTED;
+            }
+        }
 
-        public bool IsInteger => Category == NativeFieldCategory.INTEGER;
+        public bool IsInteger
+        {
+            get
+            {
+                return Category == NativeFieldCategory.INTEGER;
+            }
+        }
 
-        public bool IsIllegal => Category == NativeFieldCategory.ILLEGAL;
+        public bool IsIllegal
+        {
+            get
+            {
+                return Category == NativeFieldCategory.ILLEGAL;
+            }
+        }
     }
 }

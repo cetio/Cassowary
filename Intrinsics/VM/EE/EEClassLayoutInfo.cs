@@ -83,18 +83,60 @@ namespace Cassowary.Intrinsics.VM.EE
         [FieldOffset(9)]
         public readonly byte PackingSize;
 
-        public bool IsBlittable => LayoutFlags.HasFlag(LayoutFlags.Blittable);
+        public bool IsBlittable
+        {
+            get
+            {
+                return LayoutFlags.HasFlag(LayoutFlags.Blittable);
+            }
+        }
 
-        public bool IsManagedSequential => LayoutFlags.HasFlag(LayoutFlags.ManagedSequential);
+        public bool IsManagedSequential
+        {
+            get
+            {
+                return LayoutFlags.HasFlag(LayoutFlags.ManagedSequential);
+            }
+        }
 
-        public bool IsZeroSized => LayoutFlags.HasFlag(LayoutFlags.ZeroSized);
+        public bool IsZeroSized
+        {
+            get
+            {
+                return LayoutFlags.HasFlag(LayoutFlags.ZeroSized);
+            }
+        }
 
-        public bool HasExplicitSize => LayoutFlags.HasFlag(LayoutFlags.HasExplicitSize);
+        public bool HasExplicitSize
+        {
+            get
+            {
+                return LayoutFlags.HasFlag(LayoutFlags.HasExplicitSize);
+            }
+        }
 
-        public bool IsNativePassInRegisters => LayoutFlags.HasFlag(LayoutFlags.NativePassInRegisters);
+        public bool IsNativePassInRegisters
+        {
+            get
+            {
+                return LayoutFlags.HasFlag(LayoutFlags.NativePassInRegisters);
+            }
+        }
 
-        public bool IsR4HFA => LayoutFlags.HasFlag(LayoutFlags.R4HFA);
+        public bool IsR4HFA
+        {
+            get
+            {
+                return LayoutFlags.HasFlag(LayoutFlags.R4HFA);
+            }
+        }
 
-        public bool IsR8HFA => LayoutFlags.HasFlag(LayoutFlags.R8HFA);
+        public bool IsR8HFA
+        {
+            get
+            {
+                return LayoutFlags.HasFlag(LayoutFlags.R8HFA);
+            }
+        }
     }
 }
