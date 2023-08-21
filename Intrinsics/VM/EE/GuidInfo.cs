@@ -34,6 +34,12 @@ namespace Cassowary.Intrinsics.VM.EE
         /// </summary>
         [FieldOffset(16)]
         public readonly bool GeneratedFromName; //m_bGeneratedFromName
+
+        internal GuidInfo(Guid guid, bool generatedFromName)
+        {
+            Guid = guid;
+            GeneratedFromName = generatedFromName;
+        }
     }
 
 }

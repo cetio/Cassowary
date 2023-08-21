@@ -292,7 +292,7 @@ namespace Cassowary.Intrinsics.VM
         }
 
         public FieldAttributes FieldAttributes
-        { 
+        {
             get
             {
                 FieldInfo fieldInfo = FieldInfo.GetFieldFromHandle(RuntimeFieldHandle);

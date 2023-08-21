@@ -19,7 +19,8 @@ using System.Runtime.InteropServices;
 
 namespace Cassowary.Intrinsics.VM
 {
-    public enum TableFlags : uint
+    [Flags]
+    public enum WriteableFlags : uint
     {
         Unrestored = 0x00000004,
         HasApproxParent = 0x00000010,
@@ -42,7 +43,7 @@ namespace Cassowary.Intrinsics.VM
         /// Flags pertaining to the parent structure (MethodTable.)
         /// </summary>
         [FieldOffset(0)]
-        public readonly TableFlags TableFlags; // m_dwFlags
+        public readonly WriteableFlags WriteableFlags; // m_dwFlags
 
         //[FieldOffset(4)]
         //public readonly RuntimeTypeHandle m_hExposedClassObject;
@@ -51,7 +52,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TableFlags.HasFlag(TableFlags.Unrestored);
+                return WriteableFlags.HasFlag(WriteableFlags.Unrestored);
             }
         }
 
@@ -59,7 +60,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TableFlags.HasFlag(TableFlags.HasApproxParent);
+                return WriteableFlags.HasFlag(WriteableFlags.HasApproxParent);
             }
         }
 
@@ -67,7 +68,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TableFlags.HasFlag(TableFlags.UnrestoredTypeKey);
+                return WriteableFlags.HasFlag(WriteableFlags.UnrestoredTypeKey);
             }
         }
 
@@ -75,7 +76,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TableFlags.HasFlag(TableFlags.IsNotFullyLoaded);
+                return WriteableFlags.HasFlag(WriteableFlags.IsNotFullyLoaded);
             }
         }
 
@@ -83,7 +84,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TableFlags.HasFlag(TableFlags.DependenciesLoaded);
+                return WriteableFlags.HasFlag(WriteableFlags.DependenciesLoaded);
             }
         }
 
@@ -91,7 +92,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TableFlags.HasFlag(TableFlags.CanCompareBitsOrUseFastGetHashCode);
+                return WriteableFlags.HasFlag(WriteableFlags.CanCompareBitsOrUseFastGetHashCode);
             }
         }
 
@@ -99,7 +100,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TableFlags.HasFlag(TableFlags.HasCheckedCanCompareBitsOrUseFastGetHashCode);
+                return WriteableFlags.HasFlag(WriteableFlags.HasCheckedCanCompareBitsOrUseFastGetHashCode);
             }
         }
 
@@ -107,7 +108,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TableFlags.HasFlag(TableFlags.ParentMethodTablePointerValid);
+                return WriteableFlags.HasFlag(WriteableFlags.ParentMethodTablePointerValid);
             }
         }
 
@@ -115,7 +116,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TableFlags.HasFlag(TableFlags.HasInjectedInterfaceDuplicates);
+                return WriteableFlags.HasFlag(WriteableFlags.HasInjectedInterfaceDuplicates);
             }
         }
     }
