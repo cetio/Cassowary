@@ -37,6 +37,6 @@ namespace Cassowary.Intrinsics.VM.EE
         [FieldOffset(76)]
         public readonly CorElementType CorElementType; // m_ElementType
 
-        public bool IsPrimitive => IntrinsicHelpers.CorIsPrimitiveType(CorElementType);
+        public bool IsPrimitive => Intrinsics.CorIsPrimitiveType(CorElementType);
     }
 }

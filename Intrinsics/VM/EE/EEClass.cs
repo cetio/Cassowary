@@ -267,7 +267,7 @@ namespace Cassowary.Intrinsics.VM.EE
 
         public bool HasArrayClass => CorElementType == CorElementType.ELEMENT_TYPE_ARRAY || CorElementType == CorElementType.ELEMENT_TYPE_SZARRAY;
 
-        public bool IsPrimitive => IntrinsicHelpers.CorIsPrimitiveType(CorElementType);
+        public bool IsPrimitive => Intrinsics.CorIsPrimitiveType(CorElementType);
 
         /// <summary>
         /// Checks if the class layout depends on other modules.
