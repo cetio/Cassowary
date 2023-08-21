@@ -229,55 +229,205 @@ namespace Cassowary.Intrinsics.VM
         [FieldOffset(31)]
         public readonly bool ReadyToRunRejectedPrecompiledCode; // m_ReadyToRunRejectedPrecompiledCode
 
-        public MethodClassification MethodClassification => (MethodClassification)((ushort)MethodDescClassification & (ushort)MethodDescClassification.Classification);
+        public MethodClassification MethodClassification
+        {
+            get
+            {
+                return (MethodClassification)((ushort)MethodDescClassification & (ushort)MethodDescClassification.Classification);
+            }
+        }
 
-        public bool IsIL => MethodClassification.HasFlag(MethodClassification.IL);
+        public bool IsIL
+        {
+            get
+            {
+                return MethodClassification.HasFlag(MethodClassification.IL);
+            }
+        }
 
-        public bool IsFCall => MethodClassification.HasFlag(MethodClassification.FCall);
+        public bool IsFCall
+        {
+            get
+            {
+                return MethodClassification.HasFlag(MethodClassification.FCall);
+            }
+        }
 
-        public bool IsNDirect => MethodClassification.HasFlag(MethodClassification.NDirect);
+        public bool IsNDirect
+        {
+            get
+            {
+                return MethodClassification.HasFlag(MethodClassification.NDirect);
+            }
+        }
 
-        public bool IsEEImpl => MethodClassification.HasFlag(MethodClassification.EEImpl);
+        public bool IsEEImpl
+        {
+            get
+            {
+                return MethodClassification.HasFlag(MethodClassification.EEImpl);
+            }
+        }
 
-        public bool IsArray => MethodClassification.HasFlag(MethodClassification.Array);
+        public bool IsArray
+        {
+            get
+            {
+                return MethodClassification.HasFlag(MethodClassification.Array);
+            }
+        }
 
-        public bool IsInstantiated => MethodClassification.HasFlag(MethodClassification.Instantiated);
+        public bool IsInstantiated
+        {
+            get
+            {
+                return MethodClassification.HasFlag(MethodClassification.Instantiated);
+            }
+        }
 
-        public bool IsDynamic => MethodClassification.HasFlag(MethodClassification.Dynamic);
+        public bool IsDynamic
+        {
+            get
+            {
+                return MethodClassification.HasFlag(MethodClassification.Dynamic);
+            }
+        }
 
-        public bool HasNonVtableSlot => MethodDescClassification.HasFlag(MethodDescClassification.HasNonVtableSlot);
+        public bool HasNonVtableSlot
+        {
+            get
+            {
+                return MethodDescClassification.HasFlag(MethodDescClassification.HasNonVtableSlot);
+            }
+        }
 
-        public bool IsMethodImpl => MethodDescClassification.HasFlag(MethodDescClassification.MethodImpl);
+        public bool IsMethodImpl
+        {
+            get
+            {
+                return MethodDescClassification.HasFlag(MethodDescClassification.MethodImpl);
+            }
+        }
 
-        public bool IsStatic => MethodDescClassification.HasFlag(MethodDescClassification.Static);
+        public bool IsStatic
+        {
+            get
+            {
+                return MethodDescClassification.HasFlag(MethodDescClassification.Static);
+            }
+        }
 
-        public bool IsDuplicate => MethodDescClassification.HasFlag(MethodDescClassification.Duplicate);
+        public bool IsDuplicate
+        {
+            get
+            {
+                return MethodDescClassification.HasFlag(MethodDescClassification.Duplicate);
+            }
+        }
 
-        public bool IsVerified => MethodDescClassification.HasFlag(MethodDescClassification.VerifiedState);
+        public bool IsVerified
+        {
+            get
+            {
+                return MethodDescClassification.HasFlag(MethodDescClassification.VerifiedState);
+            }
+        }
 
-        public bool IsVerifiable => MethodDescClassification.HasFlag(MethodDescClassification.Verifiable);
+        public bool IsVerifiable
+        {
+            get
+            {
+                return MethodDescClassification.HasFlag(MethodDescClassification.Verifiable);
+            }
+        }
 
-        public bool IsNotInlined => MethodDescClassification.HasFlag(MethodDescClassification.NotInline);
+        public bool IsNotInlined
+        {
+            get
+            {
+                return MethodDescClassification.HasFlag(MethodDescClassification.NotInline);
+            }
+        }
 
-        public bool IsSynchronized => MethodDescClassification.HasFlag(MethodDescClassification.Synchronized);
+        public bool IsSynchronized
+        {
+            get
+            {
+                return MethodDescClassification.HasFlag(MethodDescClassification.Synchronized);
+            }
+        }
 
-        public bool RequiresFullSlotNumber => MethodDescClassification.HasFlag(MethodDescClassification.RequiresFullSlotNumber);
+        public bool RequiresFullSlotNumber 
+        {
+            get
+            {
+                return MethodDescClassification.HasFlag(MethodDescClassification.RequiresFullSlotNumber);
+            }
+        }
 
-        public bool HasStableEntryPoint => CodeFlags.HasFlag(DescCodeFlags.HasStableEntryPoint);
+        public bool HasStableEntryPoint
+        {
+            get
+            {
+                return CodeFlags.HasFlag(DescCodeFlags.HasStableEntryPoint);
+            }
+        }
 
-        public bool HasPrecode => CodeFlags.HasFlag(DescCodeFlags.HasPrecode);
+        public bool HasPrecode
+        {
+            get
+            {
+                return CodeFlags.HasFlag(DescCodeFlags.HasPrecode);
+            }
+        }
 
-        public bool IsUnboxingStub => CodeFlags.HasFlag(DescCodeFlags.IsUnboxingStub);
+        public bool IsUnboxingStub
+        {
+            get
+            {
+                return CodeFlags.HasFlag(DescCodeFlags.IsUnboxingStub);
+            }
+        }
 
-        public bool HasNativeCodeSlot => CodeFlags.HasFlag(DescCodeFlags.HasNativeCodeSlot);
+        public bool HasNativeCodeSlot
+        {
+            get
+            {
+                return CodeFlags.HasFlag(DescCodeFlags.HasNativeCodeSlot);
+            }
+        }
 
-        public bool IsJitIntrinsic => CodeFlags.HasFlag(DescCodeFlags.IsJitIntrinsic);
+        public bool IsJitIntrinsic
+        {
+            get
+            {
+                return CodeFlags.HasFlag(DescCodeFlags.IsJitIntrinsic);
+            }
+        }
 
-        public bool HasForwardedValuetypeParameter => ParamFlags.HasFlag(ParamFlags.HasForwardedValuetypeParameter);
+        public bool HasForwardedValuetypeParameter
+        {
+            get
+            {
+                return ParamFlags.HasFlag(ParamFlags.HasForwardedValuetypeParameter);
+            }
+        }
 
-        public bool ValueTypeParametersWalked => ParamFlags.HasFlag(ParamFlags.ValueTypeParametersWalked);
+        public bool ValueTypeParametersWalked
+        {
+            get
+            {
+                return ParamFlags.HasFlag(ParamFlags.ValueTypeParametersWalked);
+            }
+        }
 
-        public bool DoesNotHaveEquivalentValuetypeParameters => ParamFlags.HasFlag(ParamFlags.DoesNotHaveEquivalentValuetypeParameters);
+        public bool DoesNotHaveEquivalentValuetypeParameters
+        {
+            get
+            {
+                return ParamFlags.HasFlag(ParamFlags.DoesNotHaveEquivalentValuetypeParameters);
+            }
+        }
 
         internal RuntimeMethodHandle RuntimeMethodHandle
         {

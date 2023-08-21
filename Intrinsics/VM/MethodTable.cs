@@ -130,6 +130,8 @@ namespace Cassowary.Intrinsics.VM
     {
         public static MethodTable* FromType(Type type)
         {
+            if (type.IsPointer || type.IsByRef)
+                throw new ArgumentException("'type' cannot be a pointer or byref type, as it causes the Clr to crash.");
             return (MethodTable*)type.TypeHandle.Value;
         }
 
@@ -383,7 +385,7 @@ namespace Cassowary.Intrinsics.VM
         }
 
         /// <summary>
-        /// Checks if the MethodTable has a parent.
+        /// Gets a value determining whether or not the associated type has any parent type.
         /// </summary>
         public bool HasParent
         {
@@ -404,6 +406,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is an enum type.
+        /// </summary>
         public bool IsEnum
         {
             get
@@ -412,14 +417,20 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is void.
+        /// </summary>
         public bool IsVoid
         {
             get
             {
-                return AsType() == typeof(void);
+                return *(MethodTable*)typeof(void).TypeHandle.Value == this;
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a string.
+        /// </summary>
         public bool IsString
         {
             get
@@ -428,6 +439,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a string or array type.
+        /// </summary>
         public bool IsStringOrArray
         {
             get
@@ -436,274 +450,588 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a delegate type.
+        /// </summary>
         public bool IsDelegate
         {
             get
             {
-                return HasParent && ParentMethodTable == FromType(typeof(Delegate)) ||
-                    ParentMethodTable == FromType(typeof(MulticastDelegate));
+                return GetClass()->IsDelegate;
             }
         }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is marshalable by reference.
         /// </summary>
-        public bool IsMarshalByRef => (TypeFlags & TypeFlags.MarshalByRefMask) == TypeFlags.MarshalByRef;
+        public bool IsMarshalByRef
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.MarshalByRef);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is contextful.
         /// </summary>
-        public bool IsContextful => TypeFlags.HasFlag(TypeFlags.Contextful);
+        public bool IsContextful
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.Contextful);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is a value type.
         /// </summary>
-        public bool IsValueType => (TypeFlags & TypeFlags.ValueTypeMask) == TypeFlags.ValueType;
+        public bool IsValueType
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.ValueType);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is nullable.
         /// </summary>
-        public bool IsNullable => TypeFlags.HasFlag(TypeFlags.Nullable);
+        public bool IsNullable
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.Nullable);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is a primitive value type (enum, primitive, etc.)
         /// </summary>
-        public bool IsPrimitiveValueType => TypeFlags.HasFlag(TypeFlags.PrimitiveValueType);
+        public bool IsPrimitiveValueType
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.PrimitiveValueType);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is a true primitive type.
         /// </summary>
-        public bool IsTruePrimitive => TypeFlags.HasFlag(TypeFlags.TruePrimitive);
+        public bool IsTruePrimitive
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.TruePrimitive);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is an Array.
         /// </summary>
-        public bool IsArray => TypeFlags.HasFlag(TypeFlags.Array);
+        public bool IsArray
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.Array);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is an SZArray.
         /// </summary>
-        public bool IsSZArray => IsArray && TypeFlags.HasFlag(TypeFlags.IfArrayThenSzArray);
+        public bool IsSZArray
+        {
+            get
+            {
+                return IsArray && TypeFlags.HasFlag(TypeFlags.IfArrayThenSzArray);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is an interface.
         /// </summary>
-        public bool IsInterface => TypeFlags.HasFlag(TypeFlags.Interface);
+        public bool IsInterface
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.Interface);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is an interface that has GuidInfo.
         /// </summary>
-        public bool IsInterfaceWithGuidInfo => TypeFlags.HasFlag(TypeFlags.IfInterfaceThenHasGuidInfo);
+        public bool IsInterfaceWithGuidInfo
+        {
+            get
+            {
+                return IsInterface && TypeFlags.HasFlag(TypeFlags.IfInterfaceThenHasGuidInfo);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is a transparent proxy.
         /// </summary>
-        public bool IsTransparentProxy => TypeFlags.HasFlag(TypeFlags.TransparentProxy);
+        public bool IsTransparentProxy
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.TransparentProxy);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is associated with an async pin.
         /// </summary>
-        public bool IsAsyncPin => TypeFlags.HasFlag(TypeFlags.AsyncPin);
+        public bool IsAsyncPin
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.AsyncPin);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has a finalizer.
         /// </summary>
-        public bool HasFinalizer => TypeFlags.HasFlag(TypeFlags.HasFinalizer);
+        public bool HasFinalizer
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.HasFinalizer);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is an ICastable.
         /// </summary>
-        public bool IsICastable => TypeFlags.HasFlag(TypeFlags.ICastable);
+        public bool IsICastable
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.ICastable);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has an indirect parent.
         /// </summary>
-        public bool HasIndirectParent => TypeFlags.HasFlag(TypeFlags.HasIndirectParent);
+        public bool HasIndirectParent
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.HasIndirectParent);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type contains any pointers.
         /// </summary>
-        public bool ContainsPointers => TypeFlags.HasFlag(TypeFlags.ContainsPointers);
+        public bool ContainsPointers
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.ContainsPointers);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is equivalent to any other types.
         /// </summary>
-        public bool HasTypeEquivalence => TypeFlags.HasFlag(TypeFlags.HasTypeEquivalence);
+        public bool HasTypeEquivalence
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.HasTypeEquivalence);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has RCW per-type data.
         /// </summary>
-        public bool HasRCWPerTypeData => TypeFlags.HasFlag(TypeFlags.HasRCWPerTypeData);
+        public bool HasRCWPerTypeData
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.HasRCWPerTypeData);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has a critical finalizer that must be executed.
         /// </summary>
-        public bool HasCriticalFinalizer => TypeFlags.HasFlag(TypeFlags.HasCriticalFinalizer);
+        public bool HasCriticalFinalizer
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.HasCriticalFinalizer);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is collectible.
         /// </summary>
-        public bool IsCollectible => TypeFlags.HasFlag(TypeFlags.Collectible);
+        public bool IsCollectible
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.Collectible);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type contains any generic variables.
         /// </summary>
-        public bool ContainsGenericVariables => TypeFlags.HasFlag(TypeFlags.ContainsGenericVariables);
+        public bool ContainsGenericVariables
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.ContainsGenericVariables);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is a COM object.
         /// </summary>
-        public bool IsCOMObject => TypeFlags.HasFlag(TypeFlags.ComObject);
+        public bool IsCOMObject
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.ComObject);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has a component size, like an Array.
         /// </summary>
-        public bool HasComponentSize => TypeFlags.HasFlag(TypeFlags.HasComponentSize);
+        public bool HasComponentSize
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.HasComponentSize);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has a non-trivial interface cast.
         /// </summary>
-        public bool HasNonTrivialInterfaceCast => TypeFlags.HasFlag(TypeFlags.NonTrivialInterfaceCast);
+        public bool HasNonTrivialInterfaceCast
+        {
+            get
+            {
+                return TypeFlags.HasFlag(TypeFlags.NonTrivialInterfaceCast);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is a static dynamic.
         /// </summary>
-        public bool IsStaticsDynamic => (GenericsFlags & GenericsFlags.StaticsMask) == GenericsFlags.StaticsMask_Dynamic;
+        public bool IsStaticsDynamic
+        {
+            get
+            {
+                return (GenericsFlags & GenericsFlags.StaticsMask) == GenericsFlags.StaticsMask_Dynamic;
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is not in it's preferred zap module.
         /// </summary>
-        public bool IsNotInPZM => GenericsFlags.HasFlag(GenericsFlags.NotInPZM);
+        public bool IsNotInPZM
+        {
+            get
+            {
+                return GenericsFlags.HasFlag(GenericsFlags.NotInPZM);
+            }
+        }
 
         /// <summary>
-        /// GGets a value determining whether or not the associated type is a generic instance.
+        /// Gets a value determining whether or not the associated type is a generic instance.
         /// </summary>
-        public bool IsGenericInst => (GenericsFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_GenericInst;
+        public bool IsGenericInst
+        {
+            get
+            {
+                return (GenericsFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_GenericInst;
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is a shared instance.
         /// </summary>
-        public bool IsSharedInst => (GenericsFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_SharedInst;
+        public bool IsGenericSharedInst
+        {
+            get
+            {
+                return (GenericsFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_SharedInst;
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is a typical instance.
         /// </summary>
-        public bool IsTypicalInst => (GenericsFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_TypicalInst;
+        public bool IsGenericTypicalInst
+        {
+            get
+            {
+                return (GenericsFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_TypicalInst;
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has remoting VTS information.
         /// </summary>
-        public bool HasRemotingVtsInfo => GenericsFlags.HasFlag(GenericsFlags.HasRemotingVtsInfo);
+        public bool HasRemotingVtsInfo
+        {
+            get
+            {
+                return GenericsFlags.HasFlag(GenericsFlags.HasRemotingVtsInfo);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has variance.
         /// </summary>
-        public bool HasVariance => GenericsFlags.HasFlag(GenericsFlags.HasVariance);
+        public bool HasVariance
+        {
+            get
+            {
+                return GenericsFlags.HasFlag(GenericsFlags.HasVariance);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has a default constuctor.
         /// </summary>
-        public bool HasDefaultCtor => GenericsFlags.HasFlag(GenericsFlags.HasDefaultCtor);
+        public bool HasDefaultCtor
+        {
+            get
+            {
+                return GenericsFlags.HasFlag(GenericsFlags.HasDefaultCtor);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has precise init constructors.
         /// </summary>
-        public bool HasPreciseInitCtors => GenericsFlags.HasFlag(GenericsFlags.HasPreciseInitCctors);
+        public bool HasPreciseInitCtors
+        {
+            get
+            {
+                return GenericsFlags.HasFlag(GenericsFlags.HasPreciseInitCctors);
+            }
+        }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is an HFA (homogeneous floating-point aggregates).
+        /// Gets a value determining whether or not the associated type is an HFA.
         /// </summary>
-        public bool IsHFA => GenericsFlags.HasFlag(GenericsFlags.IsHFA);
+        public bool IsHFA
+        {
+            get
+            {
+                return GenericsFlags.HasFlag(GenericsFlags.IsHFA);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is a reference to a regular structure.
         /// </summary>
-        public bool IsRegStructPassed => GenericsFlags.HasFlag(GenericsFlags.IsRegStructPassed);
+        public bool IsRegStructPassed
+        {
+            get
+            {
+                return GenericsFlags.HasFlag(GenericsFlags.IsRegStructPassed);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is passed like a by-ref.
         /// </summary>
-        public bool IsByRefLike => GenericsFlags.HasFlag(GenericsFlags.IsByRefLike);
+        public bool IsByRefLike
+        {
+            get
+            {
+                return GenericsFlags.HasFlag(GenericsFlags.IsByRefLike);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has any per-instance information.
         /// </summary>
-        public bool HasPerInstInfo => InterfaceFlags.HasFlag(InterfaceFlags.HasPerInstInfo);
+        public bool HasPerInstInfo
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasPerInstInfo);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has an InterfaceMap, the map length == NumInterfaces.
         /// </summary>
-        public bool HasInterfaceMap => InterfaceFlags.HasFlag(InterfaceFlags.HasInterfaceMap);
+        public bool HasInterfaceMap
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasInterfaceMap);
+            }
+        }    
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has a dispatch map slot.
         /// </summary>
-        public bool HasDispatchMapSlot => InterfaceFlags.HasFlag(InterfaceFlags.HasDispatchMapSlot);
+        public bool HasDispatchMapSlot
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasDispatchMapSlot);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has any non-virtual slots.
         /// </summary>
-        public bool HasNonVirtualSlots => InterfaceFlags.HasFlag(InterfaceFlags.HasNonVirtualSlots);
+        public bool HasNonVirtualSlots
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasNonVirtualSlots);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has module overrides.
         /// </summary>
-        public bool HasModuleOverride => InterfaceFlags.HasFlag(InterfaceFlags.HasModuleOverride);
+        public bool HasModuleOverride
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasModuleOverride);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is zapped.
         /// </summary>
-        public bool IsZapped => InterfaceFlags.HasFlag(InterfaceFlags.IsZapped);
+        public bool IsZapped
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.IsZapped);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is pre-restored.
         /// </summary>
-        public bool IsPreRestored => InterfaceFlags.HasFlag(InterfaceFlags.IsPreRestored);
+        public bool IsPreRestored
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.IsPreRestored);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type depends on an external module.
         /// </summary>
-        public bool HasModuleDependencies => InterfaceFlags.HasFlag(InterfaceFlags.HasModuleDependencies);
+        public bool HasModuleDependencies
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasModuleDependencies);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is intrinsic.
         /// </summary>
-        public bool IsIntrinsicType => InterfaceFlags.HasFlag(InterfaceFlags.IsIntrinsicType);
+        public bool IsIntrinsicType
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.IsIntrinsicType);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type requires a fat dispatch token.
         /// </summary>
-        public bool RequiresDispatchTokenFat => InterfaceFlags.HasFlag(InterfaceFlags.RequiresDispatchTokenFat);
+        public bool RequiresDispatchTokenFat
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.RequiresDispatchTokenFat);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has any constructor.
         /// </summary>
-        public bool HasCctor => InterfaceFlags.HasFlag(InterfaceFlags.HasCctor);
+        public bool HasCctor
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasCctor);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has a CCWTemplate, this only happens with COM exposed types.
         /// </summary>
-        public bool HasCCWTemplate => InterfaceFlags.HasFlag(InterfaceFlags.HasCCWTemplate);
+        public bool HasCCWTemplate
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasCCWTemplate);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type requires alignment of 8 bytes in memory.
         /// </summary>
-        public bool RequiresAlign8 => InterfaceFlags.HasFlag(InterfaceFlags.RequiresAlign8);
+        public bool RequiresAlign8
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.RequiresAlign8);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has boxed regular statics.
         /// </summary>
-        public bool HasBoxedRegularStatics => InterfaceFlags.HasFlag(InterfaceFlags.HasBoxedRegularStatics);
+        public bool HasBoxedRegularStatics
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasBoxedRegularStatics);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type only has one non-virtual slot available.
         /// </summary>
-        public bool HasSingleNonVirtualSlot => InterfaceFlags.HasFlag(InterfaceFlags.HasSingleNonVirtualSlot);
+        public bool HasSingleNonVirtualSlot
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.HasSingleNonVirtualSlot);
+            }
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type depends on equivalent or forwarded structs.
         /// </summary>
-        public bool DependsOnEquivalentOrForwardedStructs => InterfaceFlags.HasFlag(InterfaceFlags.DependsOnEquivalentOrForwardedStructs);
+        public bool DependsOnEquivalentOrForwardedStructs
+        {
+            get
+            {
+                return InterfaceFlags.HasFlag(InterfaceFlags.DependsOnEquivalentOrForwardedStructs);
+            }
+        }
 
         /// <summary>
         /// Gets the EEClass of this MethodTable, even if it does not have one in its union.
@@ -728,7 +1056,7 @@ namespace Cassowary.Intrinsics.VM
         /// Gets the root MethodTable from the Canonical MethodTable.
         /// </summary>
         /// <returns>Root MethodTable.</returns>
-        public MethodTable* RootCanonTable()
+        public MethodTable* GetRootCanonTable()
         {
             fixed (MethodTable* ptr = &this)
             {
@@ -737,8 +1065,40 @@ namespace Cassowary.Intrinsics.VM
                     return ptr;
                 }
 
-                return CanonMethodTable->RootCanonTable();
+                return CanonMethodTable->GetRootCanonTable();
             }
+        }
+
+        /// <summary>
+        /// Gets the type of this MethodTable.
+        /// </summary>
+        /// <returns>The type of this MethodTable.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Type AsType()
+        {
+            fixed (MethodTable* ptr = &this)
+            {
+                // If this MethodTable exists then, clearly, the Type must also exist.
+                return Type.GetTypeFromHandle(RuntimeTypeHandle.FromIntPtr((nint)ptr)!)!;
+            }
+        }
+
+        /// <summary>
+        /// Gets all interfaces that this MethodTable has.
+        /// </summary>
+        /// <returns>All interfaces that this MethodTable has.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public InterfaceInfo[] GetInterfaces()
+        {
+            if (!HasInterfaceMap)
+                return new InterfaceInfo[0];
+
+            InterfaceInfo[] interfaces = new InterfaceInfo[NumInterfaces];
+
+            for (int i = 0; i < NumInterfaces; i++)
+                interfaces[i] = *(InterfaceMap + i);
+
+            return interfaces;
         }
 
         // The type nor method should ever be null, unless they're removed.
@@ -891,7 +1251,7 @@ namespace Cassowary.Intrinsics.VM
             {
                 return new string((char*)Unsafe.Add(ptr, 4), 0, *(int*)ptr);
             }
-            if (IsArray)
+            else if (IsArray)
             {
                 Array array = AllocateArrayUnknownRank(*(int*)ptr);
                 Unsafe.CopyBlock(Intrinsics.GetPointer(array), ptr, (uint)(*(int*)ptr * ComponentSize) + 8);
@@ -903,6 +1263,56 @@ namespace Cassowary.Intrinsics.VM
                 Unsafe.Copy(ref Intrinsics.GetData(obj), ptr);
                 return obj;
             }
+        }
+
+        /// <summary>
+        /// Checks if this MethodTable is equivalent to the given MethodTable.
+        /// </summary>
+        /// <param name="pMT">The MethodTable to check if equivalent to.</param>
+        /// <returns>True if this MethodTable is equivalent to the given MethodTable, otherwise false.</returns>
+        public bool IsEquivalentTo(MethodTable* pMT)
+        {
+            if (*pMT == this)
+                return true;
+
+            if (!pMT->HasTypeEquivalence || !HasTypeEquivalence)
+                return false;
+
+            if (pMT->GetClass()->CorElementType != GetClass()->CorElementType)
+                return false;
+
+            if (pMT->IsArray != IsArray ||
+                pMT->IsString != IsString ||
+                pMT->IsNullable != IsNullable ||
+                pMT->IsGenericInst != IsGenericInst)
+                return false;
+
+            if (HasCommonInterface(pMT))
+                return true;
+
+            if (GetRootCanonTable()->ElementMethodTable->IsEquivalentTo(pMT->GetRootCanonTable()->ElementMethodTable))
+                return true;
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if this MethodTable has any interfaces in common with the given MethodTable.        
+        /// </summary>
+        /// <param name="pMT">The MethodTable to check for commonalities with.</param>
+        /// <returns>True if this MethodTable has any common interfaces, otherwise false.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        public bool HasCommonInterface(MethodTable* pMT)
+        {
+            InterfaceInfo[] interfaceInfoPMT = pMT->GetInterfaces();
+
+            foreach (InterfaceInfo interfaceInfo in GetInterfaces())
+            {
+                if (interfaceInfoPMT.Contains(interfaceInfo))
+                    return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -924,25 +1334,13 @@ namespace Cassowary.Intrinsics.VM
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public bool CanCastTo(MethodTable* pMT)
         {
-            if (pMT->IsGenericInst == IsGenericInst &&
-                pMT->IsStringOrArray == IsStringOrArray &&
-                pMT->NumVirtuals == NumVirtuals &&
-                pMT->IsNullable == IsNullable &&
-                pMT->IsArray == IsArray)
-            {
-                if (pMT->IsArray && pMT->GetClass()->Rank != GetClass()->Rank)
-                {
-                    return false;
-                }
-                else if (pMT->IsInterface)
-                {
-                    return CanCastToInterface(pMT);
-                }
+            if (pMT->IsArray && pMT->GetClass()->Rank != GetClass()->Rank)
+                return false;
 
-                return true;
-            }
+            else if (pMT->IsInterface)
+                return CanCastToInterface(pMT);
 
-            return false;
+            return IsEquivalentTo(pMT);
         }
 
         /// <summary>
@@ -1006,8 +1404,20 @@ namespace Cassowary.Intrinsics.VM
         }
 
         /// <summary>
+        /// Initializes the type associated with this MethodTable if it has not already.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Initialize()
+        {
+            RuntimeHelpers.RunClassConstructor(AsType().TypeHandle);
+        }
+
+        /// <summary>
         /// Constructs an object of this MethodTable with the given parameters.
         /// </summary>
+        /// <remarks>
+        /// This does not ensure that the provided object is the same type as the associated type of this MethodTable, and should be checked before calling.
+        /// </remarks>
         /// <param name="obj">The object to be constructed.</param>
         /// <param name="parameters">The parameters for the object's constructor.</param>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
@@ -1041,57 +1451,6 @@ namespace Cassowary.Intrinsics.VM
             dynamic rtCtorInfo = Intrinsics.AsRuntimeConstructorInfo(ctorInfo);
 
             return rtCtorInfo.Invoke(BindingFlags.Default, null, parameters, null);
-        }
-
-        /// <summary>
-        /// Gets all interfaces that this MethodTable has.
-        /// </summary>
-        /// <returns>All interfaces that this MethodTable has.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public InterfaceInfo[] GetInterfaces()
-        {
-            if (!HasInterfaceMap)
-                return new InterfaceInfo[0];
-
-            InterfaceInfo[] interfaces = new InterfaceInfo[NumInterfaces];
-
-            for (int i = 0; i < NumInterfaces; i++)
-                interfaces[i] = *(InterfaceMap + i);
-
-            return interfaces;
-        }
-
-        /// <summary>
-        /// Gets the type of the specified pointer.
-        /// </summary>
-        /// <param name="ptr">The pointer to get the type of.</param>
-        /// <returns>The type of the specified pointer.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Type AsType()
-        {
-            fixed (MethodTable* ptr = &this)
-            {
-                // If this MethodTable exists then, clearly, the Type must also exist.
-                return Type.GetTypeFromHandle(RuntimeTypeHandle.FromIntPtr((nint)ptr)!)!;
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public MethodTable* AsByRefTable()
-        {
-            return FromType(AsType().MakeByRefType());
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public MethodTable* AsArrayTable()
-        {
-            return FromType(AsType().MakeArrayType());
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public MethodTable* AsPointerTable()
-        {
-            return FromType(AsType().MakePointerType());
         }
 
         public static bool operator ==(MethodTable methodTable, object obj)
