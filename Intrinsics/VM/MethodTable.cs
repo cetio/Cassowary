@@ -267,7 +267,7 @@ namespace Cassowary.Intrinsics.VM
         /// </summary>
         [CanBeNull]
         [FieldOffset(56)]
-        public readonly InterfaceInfo* InterfaceMap; // m_pInterfaceMap
+        public readonly MethodTable* InterfaceMap; // m_pInterfaceMap
 
         /// <summary>
         /// Part of union 2, multipurpose slot 2 information used by the runtime.
@@ -302,6 +302,17 @@ namespace Cassowary.Intrinsics.VM
             {
                 // This is a relatively faulty check, but it's okay because I said so.
                 return ArrayDesc.Contained == 1;
+            }
+        }
+
+        /// <summary>
+        /// Gets the name of the type associated with this MethodTable.
+        /// </summary>
+        public string Name
+        {
+            get
+            {
+                return ((dynamic)Intrinsics.AsRuntimeType(AsType())).Name;
             }
         }
 
@@ -393,6 +404,9 @@ namespace Cassowary.Intrinsics.VM
             {
                 try
                 {
+                    if (GetClass()->IsNested)
+                        return true;
+
                     if ((nint)ParentMethodTable == 0)
                         return false;
 
@@ -451,24 +465,13 @@ namespace Cassowary.Intrinsics.VM
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a delegate type.
-        /// </summary>
-        public bool IsDelegate
-        {
-            get
-            {
-                return GetClass()->IsDelegate;
-            }
-        }
-
-        /// <summary>
         /// Gets a value determining whether or not the associated type is marshalable by reference.
         /// </summary>
         public bool IsMarshalByRef
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.MarshalByRef);
+                return (TypeFlags & TypeFlags.MarshalByRefMask) == TypeFlags.MarshalByRef;
             }
         }
 
@@ -490,7 +493,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.ValueType);
+                return (TypeFlags & TypeFlags.ValueTypeMask) == TypeFlags.ValueType;
             }
         }
 
@@ -534,7 +537,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.Array);
+                return (TypeFlags & TypeFlags.ArrayMask) == TypeFlags.Array;
             }
         }
 
@@ -728,11 +731,11 @@ namespace Cassowary.Intrinsics.VM
         /// <summary>
         /// Gets a value determining whether or not the associated type is a static dynamic.
         /// </summary>
-        public bool IsStaticsDynamic
+        public bool IsDynamicStatics
         {
             get
             {
-                return (GenericsFlags & GenericsFlags.StaticsMask) == GenericsFlags.StaticsMask_Dynamic;
+                return (GenericsFlags & GenericsFlags.StaticsMask) != GenericsFlags.StaticsMask_NonDynamic;
             }
         }
 
@@ -877,7 +880,7 @@ namespace Cassowary.Intrinsics.VM
             {
                 return InterfaceFlags.HasFlag(InterfaceFlags.HasInterfaceMap);
             }
-        }    
+        }
 
         /// <summary>
         /// Gets a value determining whether or not the associated type has a dispatch map slot.
@@ -1034,22 +1037,34 @@ namespace Cassowary.Intrinsics.VM
         }
 
         /// <summary>
+        /// Gets a value determining whether or not the associated type is initialized before ever having been accessed.
+        /// </summary>
+        public bool IsClassPreInited
+        {
+            get
+            {
+                return ContainsGenericVariables || (!HasCctor && !HasBoxedRegularStatics && !IsDynamicStatics);
+            }
+        }
+
+        public int NumInstanceFieldBytes
+        {
+            get
+            {
+                return BaseSize - GetClass()->BaseSizePadding;
+            }
+        }
+
+        /// <summary>
         /// Gets the EEClass of this MethodTable, even if it does not have one in its union.
         /// </summary>
         /// <returns>The EEClass of this MethodTable.</returns>
         public EEClass* GetClass()
         {
-            if (HasEEClass)
-            {
-                return EEClass;
-            }
-            else if (HasCanon)
-            {
+            if (HasCanon)
                 return CanonMethodTable->GetClass();
-            }
 
-            // This should never happen.
-            throw new NotImplementedException();
+            return EEClass;
         }
 
         /// <summary>
@@ -1061,9 +1076,7 @@ namespace Cassowary.Intrinsics.VM
             fixed (MethodTable* ptr = &this)
             {
                 if (!HasCanon)
-                {
                     return ptr;
-                }
 
                 return CanonMethodTable->GetRootCanonTable();
             }
@@ -1088,15 +1101,15 @@ namespace Cassowary.Intrinsics.VM
         /// </summary>
         /// <returns>All interfaces that this MethodTable has.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public InterfaceInfo[] GetInterfaces()
+        public MethodTable*[] GetInterfaces()
         {
             if (!HasInterfaceMap)
-                return new InterfaceInfo[0];
+                return new MethodTable*[0];
 
-            InterfaceInfo[] interfaces = new InterfaceInfo[NumInterfaces];
+            MethodTable*[] interfaces = new MethodTable*[NumInterfaces];
 
             for (int i = 0; i < NumInterfaces; i++)
-                interfaces[i] = *(InterfaceMap + i);
+                interfaces[i] = InterfaceMap + i;
 
             return interfaces;
         }
@@ -1157,10 +1170,10 @@ namespace Cassowary.Intrinsics.VM
                 throw new ArgumentException($"{this} is not an array type, and cannot allocate using AllocateArray()");
 
             int[] bounds = new int[GetClass()->AsArrayClass()->Rank];
-            
+
             for (int i = 0; i < GetClass()->AsArrayClass()->Rank; i++)
                 bounds[i] = length;
-            
+
             return Array.CreateInstance(ElementMethodTable->AsType(), bounds);
         }
 
@@ -1287,9 +1300,6 @@ namespace Cassowary.Intrinsics.VM
                 pMT->IsGenericInst != IsGenericInst)
                 return false;
 
-            if (HasCommonInterface(pMT))
-                return true;
-
             if (GetRootCanonTable()->ElementMethodTable->IsEquivalentTo(pMT->GetRootCanonTable()->ElementMethodTable))
                 return true;
 
@@ -1297,18 +1307,53 @@ namespace Cassowary.Intrinsics.VM
         }
 
         /// <summary>
-        /// Checks if this MethodTable has any interfaces in common with the given MethodTable.        
+        /// Checks if this MethodTable has any interface implementations in common with the given MethodTable.        
         /// </summary>
         /// <param name="pMT">The MethodTable to check for commonalities with.</param>
         /// <returns>True if this MethodTable has any common interfaces, otherwise false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public bool HasCommonInterface(MethodTable* pMT)
+        public bool ImplementsCommonInterface(MethodTable* pMT)
         {
-            InterfaceInfo[] interfaceInfoPMT = pMT->GetInterfaces();
-
-            foreach (InterfaceInfo interfaceInfo in GetInterfaces())
+            foreach (MethodTable* interfaceInfo in GetInterfaces())
             {
-                if (interfaceInfoPMT.Contains(interfaceInfo))
+                foreach (MethodTable* interfaceInfoPMT in pMT->GetInterfaces())
+                {
+                    if (interfaceInfoPMT == interfaceInfo)
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if this MethodTable implements the given interface.     
+        /// </summary>
+        /// <param name="pMT">The MethodTable to check if implemented.</param>
+        /// <returns>True if this MethodTable implements the given interface, otherwise false.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        public bool ImplementsInterface(MethodTable* pMT)
+        {
+            foreach (MethodTable* interfaceInfo in GetInterfaces())
+            {
+                if (interfaceInfo == pMT)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if this MethodTable implements any interface equivalent to the given interface.     
+        /// </summary>
+        /// <param name="pMT">The MethodTable to check if implemented.</param>
+        /// <returns>True if this MethodTable implements an equivalent to the given interface, otherwise false.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        public bool ImplementsEquivalentInterface(MethodTable* pMT)
+        {
+            foreach (MethodTable* interfaceInfo in GetInterfaces())
+            {
+                if (interfaceInfo->IsEquivalentTo(pMT))
                     return true;
             }
 
@@ -1323,7 +1368,10 @@ namespace Cassowary.Intrinsics.VM
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public bool CanCastToInterface(MethodTable* pMT)
         {
-            return GetInterfaces().Any(x => x.MethodTable == pMT);
+            if (IsEquivalentTo(pMT))
+                return true;
+
+            return ImplementsEquivalentInterface(pMT);
         }
 
         /// <summary>
@@ -1337,8 +1385,12 @@ namespace Cassowary.Intrinsics.VM
             if (pMT->IsArray && pMT->GetClass()->Rank != GetClass()->Rank)
                 return false;
 
-            else if (pMT->IsInterface)
+            if (pMT->IsInterface)
                 return CanCastToInterface(pMT);
+
+            // Not the same as CanCastToInterface, checks if pMT and this MethodTable share any interface that we could cast to.
+            if (ImplementsCommonInterface(pMT))
+                return true;
 
             return IsEquivalentTo(pMT);
         }
@@ -1389,7 +1441,7 @@ namespace Cassowary.Intrinsics.VM
 
                     if (poMT->IsArray)
                         return pMT->BoxNoChecks(Intrinsics.GetPointer(obj));
-                    
+
                     copy = pMT->AllocateArray();
                     Unsafe.CopyBlock(Unsafe.Add(Intrinsics.GetPointer(copy), 8), Unsafe.Add(Intrinsics.GetPointer(obj), 8), (uint)ComponentSize);
                     return copy;
@@ -1453,6 +1505,12 @@ namespace Cassowary.Intrinsics.VM
             return rtCtorInfo.Invoke(BindingFlags.Default, null, parameters, null);
         }
 
+        public bool Validate(void* ptr)
+        {
+            // The runtime already handles object validation, so there's no point in validating objects
+            return *Intrinsics.GetMethodTable(ptr) == this;
+        }
+
         public static bool operator ==(MethodTable methodTable, object obj)
         {
             if (obj is not MethodTable)
@@ -1471,7 +1529,7 @@ namespace Cassowary.Intrinsics.VM
 
         public override string ToString()
         {
-            return AsType().FullName ?? string.Empty;
+            return Name ?? string.Empty;
         }
     }
 }

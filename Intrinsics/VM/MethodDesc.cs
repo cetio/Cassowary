@@ -357,7 +357,7 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
-        public bool RequiresFullSlotNumber 
+        public bool RequiresFullSlotNumber
         {
             get
             {

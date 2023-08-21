@@ -18,9 +18,9 @@ using Cassowary.Attributes;
 using Cassowary.Intrinsics.VM.Cor;
 using JetBrains.Annotations;
 using System.Reflection;
-using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using System.Runtime.Remoting;
 
 namespace Cassowary.Intrinsics.VM.EE
@@ -140,7 +140,7 @@ namespace Cassowary.Intrinsics.VM.EE
         public readonly CCWTemplate* CCWTemplate; // m_pccwTemplate
 
         [FieldOffset(56)]
-        public readonly TypeAttributes ClassAttributes; // m_dwAttrClass
+        public readonly TypeAttributes TypeAttributes; // m_dwAttrClass
 
         [FieldOffset(60)]
         public readonly VMFlags VMFlags; // m_VMFlags
@@ -178,7 +178,7 @@ namespace Cassowary.Intrinsics.VM.EE
                         return AsArrayClass()->Rank - 1;
                     }
                 }
-                else if (HasArrayDesc)
+                else if (MethodTable->HasArrayDesc)
                 {
                     if (MethodTable->ArrayDesc.Rank == 1)
                     {
@@ -204,7 +204,7 @@ namespace Cassowary.Intrinsics.VM.EE
         {
             get
             {
-                if (HasArrayDesc)
+                if (MethodTable->HasArrayDesc)
                 {
                     int arrayDescSize = LayoutEEClass->LayoutInfo.ManagedSize;
                     int componentSize = MethodTable->ComponentSize;
@@ -270,14 +270,9 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
-        public bool HasArrayDesc
-        {
-            get
-            {
-                return MethodTable->HasArrayDesc;
-            }
-        }
-
+        /// <summary>
+        /// Gets a value determining whether or not the associated type has an ArrayClass.
+        /// </summary>
         public bool HasArrayClass
         {
             get
@@ -286,6 +281,20 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated type has a DelegateEEClass.
+        /// </summary>
+        public bool HasDelegateEEClass
+        {
+            get
+            {
+                return IsDelegate;
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a primitive type.
+        /// </summary>
         public bool IsPrimitive
         {
             get
@@ -295,7 +304,282 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class layout depends on other modules.
+        /// Gets a value determining whether or not the associated type uses CharSet.Ansi.
+        /// </summary>
+        public bool IsAnsiClass
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.AnsiClass);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type has auto layout.
+        /// </summary>
+        public bool HasAutoLayout
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.AutoLayout);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is an interface.
+        /// </summary>
+        public bool IsInterface
+        {
+            get
+            {
+                return MethodTable->IsInterface;
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a class.
+        /// </summary>
+        public bool IsClass
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.Class);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is not a public type.
+        /// </summary>
+        public bool IsNotPublic
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.NotPublic);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a public type.
+        /// </summary>
+        public bool IsPublic
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.Public);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a nested public type.
+        /// </summary>
+        public bool IsNestedPublic
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.NestedPublic);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a nested private type.
+        /// </summary>
+        public bool IsNestedPrivate
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.NestedPrivate);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a nested family type.
+        /// </summary>
+        public bool IsNestedFamily
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.NestedFamily);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a nested assembly type.
+        /// </summary>
+        public bool IsNestedAssembly
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.NestedAssembly);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a nested family and assembly type.
+        /// </summary>
+        public bool IsNestedFamANDAssem
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.NestedFamANDAssem);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a nested family or assembly type.
+        /// </summary>
+        public bool IsNestedFamORAssem
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.NestedFamORAssem);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type has sequential layout.
+        /// </summary>
+        public bool HasSequentialLayout
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.SequentialLayout);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type has explicit layout.
+        /// </summary>
+        public bool HasExplicitLayout
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.ExplicitLayout);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is abstract.
+        /// </summary>
+        public bool IsAbstract
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.Abstract);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is sealed.
+        /// </summary>
+        public bool IsSealed
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.Sealed);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a special name.
+        /// </summary>
+        public bool IsSpecialName
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.SpecialName);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a runtime special name.
+        /// </summary>
+        public bool IsRTSpecialName
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.RTSpecialName);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is an import.
+        /// </summary>
+        public bool IsImport
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.Import);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is serializable.
+        /// </summary>
+        public bool IsSerializable
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.Serializable);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type is a Windows runtime component.
+        /// </summary>
+        public bool IsWindowsRuntime
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.WindowsRuntime);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type uses CharSet.Unicode.
+        /// </summary>
+        public bool IsUnicodeClass
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.UnicodeClass);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type uses CharSet.Auto.
+        /// </summary>
+        public bool IsAutoClass
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.AutoClass);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type has a custom format.
+        /// </summary>
+        public bool HasCustomFormat
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.CustomFormatClass);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type has security.
+        /// </summary>
+        public bool HasSecurity
+        {
+            get
+            {
+                return TypeAttributes.HasFlag(TypeAttributes.HasSecurity);
+            }
+        }
+
+        /// <summary>
+        /// Gets a value determining whether or not the associated type layout depends on other modules.
         /// </summary>
         public bool LayoutDependsOnOtherModules
         {
@@ -306,7 +590,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class is a delegate.
+        /// Gets a value determining whether or not the associated type is a delegate.
         /// </summary>
         public bool IsDelegate
         {
@@ -328,7 +612,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class has layout information.
+        /// Gets a value determining whether or not the associated type has layout information.
         /// </summary>
         public bool HasLayout
         {
@@ -339,7 +623,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class is nested.
+        /// Gets a value determining whether or not the associated type is nested.
         /// </summary>
         public bool IsNested
         {
@@ -350,7 +634,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class is an equivalent type.
+        /// Gets a value determining whether or not the associated type is an equivalent type.
         /// </summary>
         public bool IsEquivalentType
         {
@@ -361,7 +645,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class has overlayed fields.
+        /// Gets a value determining whether or not the associated type has overlayed fields.
         /// </summary>
         public bool HasOverlayedFields
         {
@@ -372,7 +656,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class has fields which must be explicitly initialized in a constructor.
+        /// Gets a value determining whether or not the associated type has fields which must be explicitly initialized in a constructor.
         /// </summary>
         public bool HasFieldsWhichMustBeInited
         {
@@ -383,7 +667,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class is an unsafe value type.
+        /// Gets a value determining whether or not the associated type is an unsafe value type.
         /// </summary>
         public bool UnsafeValueType
         {
@@ -427,7 +711,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class has no Guid.
+        /// Gets a value determining whether or not the associated type has no Guid.
         /// </summary>
         public bool NoGuid
         {
@@ -438,7 +722,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class has non-public fields.
+        /// Gets a value determining whether or not the associated type has non-public fields.
         /// </summary>
         public bool HasNonPublicField
         {
@@ -449,7 +733,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class contains a stack pointer.
+        /// Gets a value determining whether or not the associated type contains a stack pointer.
         /// </summary>
         public bool ContainsStackPtr
         {
@@ -460,7 +744,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class would like to have 8-byte alignment.
+        /// Gets a value determining whether or not the associated type would like to have 8-byte alignment.
         /// </summary>
         public bool PreferAlign8
         {
@@ -471,7 +755,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class is sparse for COM interop.
+        /// Gets a value determining whether or not the associated type is sparse for COM interop.
         /// </summary>
         public bool SparseForCominterop
         {
@@ -482,7 +766,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class has a CoClass attribute.
+        /// Gets a value determining whether or not the associated type has a CoClass attribute.
         /// </summary>
         public bool HasCoClassAttrib
         {
@@ -493,7 +777,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class is a COM event interface.
+        /// Gets a value determining whether or not the associated type is a COM event interface.
         /// </summary>
         public bool IsComEventItf
         {
@@ -504,7 +788,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class is projected from WinRT.
+        /// Gets a value determining whether or not the associated type is projected from WinRT.
         /// </summary>
         public bool IsProjectedFromWinRT
         {
@@ -515,7 +799,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class is exported to WinRT.
+        /// Gets a value determining whether or not the associated type is exported to WinRT.
         /// </summary>
         public bool IsExportedToWinRT
         {
@@ -526,7 +810,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class is not tightly packed.
+        /// Gets a value determining whether or not the associated type is not tightly packed.
         /// </summary>
         public bool NotTightlyPacked
         {
@@ -537,7 +821,7 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         /// <summary>
-        /// Checks if the class contains method implementations.
+        /// Gets a value determining whether or not the associated type contains method implementations.
         /// </summary>
         public bool ContainsMethodImpls
         {
@@ -580,19 +864,19 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
-        public int FieldCount
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        public int GetFieldCount()
         {
-            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-            get
-            {
-                for (int i = 0; i < 99999; i++)
-                {
-                    if (*(FieldDesc?*)(FieldDescList + i) == null)
-                        return i - 1;
-                }
-
+            if (ManagedSize == 0)
                 return 0;
+
+            for (int i = 0; i < 99999; i++)
+            {
+                if (*(FieldDesc?*)(FieldDescList + i) == null)
+                    return i - 1;
             }
+
+            return 0;
         }
 
         /// <summary>
@@ -601,12 +885,12 @@ namespace Cassowary.Intrinsics.VM.EE
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public FieldDesc*[] GetFields()
         {
-            int length = FieldCount;
+            int length = GetFieldCount();
             FieldDesc*[] fieldDescs = new FieldDesc*[length];
 
             for (int i = 0; i < length; i++)
                 fieldDescs[i] = FieldDescList + i;
-                
+
             return fieldDescs;
         }
 
@@ -636,6 +920,82 @@ namespace Cassowary.Intrinsics.VM.EE
             {
                 return (DelegateEEClass*)ptr;
             }
+        }
+
+        public GuidInfo* GetOrMakeGuid()
+        {
+            if (HasGuidInfo)
+                return GuidInfo;
+            
+            GuidInfo guidInfo = new GuidInfo(MethodTable->AsType().GUID, true);
+            return &guidInfo;
+        }
+
+        public int GetVectorSize()
+        {
+            if (MethodTable->AsType() == typeof(System.Numerics.Vector))
+            {
+                return MethodTable->NumInstanceFieldBytes;
+            }
+            else if (MethodTable->AsType() == typeof(Vector64))
+            {
+                return 8;
+            }
+            else if (MethodTable->AsType() == typeof(Vector128))
+            {
+                return 16;
+            }
+            else if (MethodTable->AsType() == typeof(Vector256))
+            {
+                return 32;
+            }
+
+            return 0;
+        }
+
+        public CorInfoHFAElemType GetHFAElemType()
+        {
+            int vectorSize = GetVectorSize();
+
+            if (vectorSize == 8)
+            {
+                return CorInfoHFAElemType.CORINFO_HFA_ELEM_VECTOR64;
+            }
+            else if (vectorSize == 16)
+            {
+                return CorInfoHFAElemType.CORINFO_HFA_ELEM_VECTOR128;
+            }
+            else if (vectorSize == 32)
+            {
+                return CorInfoHFAElemType.CORINFO_HFA_ELEM_VECTOR256;
+            }
+
+            FieldDesc* fieldDesc = GetFields()[0];
+
+            if (fieldDesc->CorElementType == CorElementType.ELEMENT_TYPE_R4)
+            {
+                return CorInfoHFAElemType.CORINFO_HFA_ELEM_FLOAT;
+            }
+            else if (fieldDesc->CorElementType == CorElementType.ELEMENT_TYPE_R8)
+            {
+                return CorInfoHFAElemType.CORINFO_HFA_ELEM_DOUBLE;
+            }
+
+            return CorInfoHFAElemType.CORINFO_HFA_ELEM_NONE;
+        }
+
+        public CharSet GetCharSet()
+        {
+            if (IsAnsiClass)
+                return CharSet.Ansi;
+
+            if (IsUnicodeClass)
+                return CharSet.Unicode;
+
+            if (IsAutoClass)
+                return CharSet.Auto;
+
+            return CharSet.None;
         }
     }
 }

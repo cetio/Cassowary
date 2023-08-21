@@ -15,68 +15,109 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 using Cassowary.Intrinsics.VM;
-using ConsoleTableExt;
+using System.Reflection;
 using System.Text;
 
 namespace Cassowary.Intrinsics
 {
     public class Inspector
     {
-        public static StringBuilder Dump<T>(object? obj)
+        /// <summary>
+        /// Generates a formatted string representation of an object's public fields and properties.
+        /// </summary>
+        /// <param name="obj">The object to inspect.</param>
+        /// <returns>A StringBuilder containing the formatted output.</returns>
+        public static StringBuilder Dump(object? obj)
         {
             if (obj is null)
                 return new StringBuilder();
 
-            TypedReference typedReference = __makeref(obj);
-            List<List<object>> tableData = new List<List<object>>();
+            var tableData = GetPublicFieldAndPropertyData(obj);
+            var title = obj.GetType().Name.ToUpper();
 
-            foreach (var field in typeof(T).GetFields())
-            {
-                object? value = field.GetValueDirect(typedReference);
-
-                tableData.Add(new List<object>
-                {
-                    field.Name,
-                    field.FieldType.IsPointer
-                    ? Unsafe.As<object?, nint>(ref value).ToString("X16")
-                    : value ?? string.Empty
-                });
-            }
-
-            foreach (var property in typeof(T).GetProperties())
-            {
-                object? value = property.GetValue(obj);
-
-                tableData.Add(new List<object>
-                {
-                    property.Name,
-                    property.PropertyType.IsPointer
-                    ? Unsafe.As<object?, nint>(ref value).ToString("X16")
-                    : value ?? string.Empty
-                });
-            }
-
-            return ConsoleTableBuilder
-                .From(tableData)
-                .WithTitle(obj.GetType().Name)
-                .WithFormat(ConsoleTableBuilderFormat.Minimal)
-                .Export();
+            return FormatTable(title, tableData);
         }
 
+        private static List<string[]> GetPublicFieldAndPropertyData(object obj)
+        {
+            var tableData = new List<string[]>();
+
+            foreach (var field in GetPublicFields(obj))
+            {
+                var name = field.Name;
+                var value = GetDisplayValue(field.GetValue(obj));
+                tableData.Add(CreateRow(name, value));
+            }
+
+            foreach (var property in GetPublicProperties(obj))
+            {
+                var name = property.Name;
+                var value = GetDisplayValue(property.GetValue(obj));
+                tableData.Add(CreateRow(name, value));
+            }
+
+            return tableData;
+        }
+
+        private static FieldInfo[] GetPublicFields(object obj)
+        {
+            return obj.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public);
+        }
+
+        private static PropertyInfo[] GetPublicProperties(object obj)
+        {
+            return obj.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public);
+        }
+
+        private static string[] CreateRow(string name, string value)
+        {
+            return new string[] { name, value };
+        }
+
+        private static string GetDisplayValue(object? value)
+        {
+            return value switch
+            {
+                null => string.Empty,
+                nint nintValue => nintValue.ToString(),
+                _ => value.ToString() ?? string.Empty
+            };
+        }
+
+        private static StringBuilder FormatTable(string title, List<string[]> data)
+        {
+            var output = new StringBuilder();
+
+            foreach (var row in data)
+            {
+                var rowText = string.Format("{0,-30} {1}", row[0], row[1]);
+                output.AppendLine(rowText);
+            }
+
+            var paddingLength = string.Format("{0,-30} {1}", data[0][0], data[0][1]).Length / 2;
+            var formattedTitle = $"--- {title} ---\n".PadLeft(paddingLength);
+            output.Insert(0, formattedTitle);
+
+            return output;
+        }
+
+        /// <summary>
+        /// Generates a formatted string representation of an array of FieldDesc pointers.
+        /// </summary>
+        /// <param name="fields">The array of FieldDesc pointers.</param>
+        /// <returns>A StringBuilder containing the formatted output.</returns>
         public static unsafe StringBuilder DumpFields(FieldDesc*[] fields)
         {
-            List<List<object>> tableData = new List<List<object>>();
+            var tableData = new List<string[]>();
 
-            foreach (FieldDesc* fieldDesc in fields)
-                tableData.Add(new List<object>()
-                {
-                    Dump<FieldDesc>(*fieldDesc)
-                });
+            foreach (var fieldDesc in fields)
+            {
+                var fieldDescDump = Dump(*fieldDesc).ToString();
+                tableData.Add(new string[] { fieldDescDump });
+            }
 
-            return ConsoleTableBuilder
-                .From(tableData)
-                .WithFormat(ConsoleTableBuilderFormat.Minimal)
-                .Export();
+            return FormatTable("FIELD DESCS", tableData);
         }
     }
 }
+
