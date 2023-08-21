@@ -15,7 +15,6 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 using Cassowary.Attributes;
-using Cassowary.Reflection.Factories;
 using JetBrains.Annotations;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -302,7 +301,8 @@ namespace Cassowary.Intrinsics.VM
                     return ".ctor";
 
                 MethodInfo methodInfo = (MethodInfo)MethodBase.GetMethodFromHandle(RuntimeMethodHandle);
-                dynamic rtMethodInfo = IntrinsicHelpers.AsRuntimeMethodInfo(methodInfo);
+                dynamic rtMethodInfo = Intrinsics.AsRuntimeMethodInfo(methodInfo);
+
                 return rtMethodInfo.Name;
             }
         }

@@ -26,22 +26,22 @@ namespace Cassowary.Intrinsics
         public static object CreateClone(object obj)
         {
             throw new NotImplementedException();
-            //object clone = IntrinsicHelpers.AllocateUninitializedClone(obj);
-            //CopyBlock(ref IntrinsicHelpers.GetHeapData(clone), ref IntrinsicHelpers.GetHeapData(obj), (uint)IntrinsicHelpers.GetRawObjectDataSize(obj));
+            //object clone = Intrinsics.AllocateUninitializedClone(obj);
+            //CopyBlock(ref Intrinsics.GetHeapData(clone), ref Intrinsics.GetHeapData(obj), (uint)Intrinsics.GetRawObjectDataSize(obj));
             //return clone;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static object CreateUninitializedObject(Type type)
         {
-            return IntrinsicHelpers.GetMethodTable(type)->Allocate();
+            return Intrinsics.GetMethodTable(type)->Allocate();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static object CreateUninitializedClone(object obj)
         {
             throw new NotImplementedException();
-            //return IntrinsicHelpers.AllocateUninitializedClone(obj);
+            //return Intrinsics.AllocateUninitializedClone(obj);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -140,21 +140,21 @@ namespace Cassowary.Intrinsics.VM
 
             if (obj is Array array)
             {
-                MethodTable* ptr = (MethodTable*)Unsafe.Add(ref Unsafe.As<byte, nint>(ref IntrinsicHelpers.GetData(obj)), -1);
-                ptr->SetArrayDesc(*(ArrayDesc*)IntrinsicHelpers.GetPointer(array));
+                MethodTable* ptr = (MethodTable*)Unsafe.Add(ref Unsafe.As<byte, nint>(ref Intrinsics.GetData(obj)), -1);
+                ptr->SetArrayDesc(*(ArrayDesc*)Intrinsics.GetPointer(array));
                 return ptr;
             }
             else if (obj is IEnumerable objs)
             {
                 object[] objsCast = objs.Cast<object>().ToArray();
-                MethodTable* ptr = (MethodTable*)Unsafe.Add(ref Unsafe.As<byte, nint>(ref IntrinsicHelpers.GetData(obj)), -1);
+                MethodTable* ptr = (MethodTable*)Unsafe.Add(ref Unsafe.As<byte, nint>(ref Intrinsics.GetData(obj)), -1);
                 ptr->SetArrayDesc(new ArrayDesc((byte)objsCast.Count(),
-                    FromObject(objsCast.First())->EEClass->LayoutEEClass->LayoutInfo.ManagedSize,
-                    FromObject(objsCast)->EEClass->Rank));
+                    FromObject(objsCast.First())->GetClass()->LayoutEEClass->LayoutInfo.ManagedSize,
+                    FromObject(objsCast)->GetClass()->Rank));
                 return ptr;
             }
 
-            return (MethodTable*)Unsafe.Add(ref Unsafe.As<byte, nint>(ref IntrinsicHelpers.GetData(obj)), -1);
+            return (MethodTable*)Unsafe.Add(ref Unsafe.As<byte, nint>(ref Intrinsics.GetData(obj)), -1);
         }
 
         /// <summary>
@@ -416,7 +416,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return HasParent && AsType() == typeof(void);
+                return AsType() == typeof(void);
             }
         }
 
@@ -432,7 +432,16 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return *(MethodTable*)typeof(string).TypeHandle.Value == this || IsArray || IsSZArray;
+                return IsString || IsArray;
+            }
+        }
+
+        public bool IsDelegate
+        {
+            get
+            {
+                return HasParent && ParentMethodTable == FromType(typeof(Delegate)) ||
+                    ParentMethodTable == FromType(typeof(MulticastDelegate));
             }
         }
 
@@ -469,12 +478,12 @@ namespace Cassowary.Intrinsics.VM
         /// <summary>
         /// Gets a value determining whether or not the associated type is an Array.
         /// </summary>
-        public bool IsArray => (TypeFlags & TypeFlags.ArrayMask) == TypeFlags.Array;
+        public bool IsArray => TypeFlags.HasFlag(TypeFlags.Array);
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is an SZArray.
         /// </summary>
-        public bool IsSZArray => (TypeFlags & TypeFlags.IfArrayThenSzArray) == 0;
+        public bool IsSZArray => IsArray && TypeFlags.HasFlag(TypeFlags.IfArrayThenSzArray);
 
         /// <summary>
         /// Gets a value determining whether or not the associated type is an interface.
@@ -696,6 +705,10 @@ namespace Cassowary.Intrinsics.VM
         /// </summary>
         public bool DependsOnEquivalentOrForwardedStructs => InterfaceFlags.HasFlag(InterfaceFlags.DependsOnEquivalentOrForwardedStructs);
 
+        /// <summary>
+        /// Gets the EEClass of this MethodTable, even if it does not have one in its union.
+        /// </summary>
+        /// <returns>The EEClass of this MethodTable.</returns>
         public EEClass* GetClass()
         {
             if (HasEEClass)
@@ -711,6 +724,10 @@ namespace Cassowary.Intrinsics.VM
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// Gets the root MethodTable from the Canonical MethodTable.
+        /// </summary>
+        /// <returns>Root MethodTable.</returns>
         public MethodTable* RootCanonTable()
         {
             fixed (MethodTable* ptr = &this)
@@ -727,12 +744,20 @@ namespace Cassowary.Intrinsics.VM
         // The type nor method should ever be null, unless they're removed.
         private static Func<nint, object> AllocateInternal = Unsafe.As<Func<nint, object>>(DelegateFactory.MakeDelegate(Type.GetType("System.StubHelpers.StubHelpers")!.GetMethod("AllocateInternal", BindingFlags.NonPublic | BindingFlags.Static)!));
 
+        /// <summary>
+        /// Checks if this MethodTable can allocate an object.
+        /// </summary>
+        /// <returns>True if if this MethodTable can allocate an object, otherwise false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool CanAllocate()
         {
             return !IsVoid && !IsInterface;
         }
 
+        /// <summary>
+        /// Allocates this MethodTable, checks if <see cref="MethodTable.CanAllocate"/> returns true.
+        /// </summary>
+        /// <returns>The allocated object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public object Allocate()
         {
@@ -743,10 +768,15 @@ namespace Cassowary.Intrinsics.VM
             return AllocateNoChecks();
         }
 
+        /// <summary>
+        /// Allocates this MethodTable, if it is an Array.
+        /// </summary>
+        /// <param name="lengths">The lengths of the Array to allocate.</param>
+        /// <returns>The allocated object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public Array AllocateArray(params int[] lengths)
         {
-            if (!IsArray && !IsSZArray)
+            if (!IsArray)
                 throw new ArgumentException($"{this} is not an array type, and cannot allocate using AllocateArray()");
 
             if (lengths.Length == 0)
@@ -755,10 +785,15 @@ namespace Cassowary.Intrinsics.VM
             return Array.CreateInstance(ElementMethodTable->AsType(), lengths);
         }
 
+        /// <summary>
+        /// Allocates this MethodTable, if it is an Array.
+        /// </summary>
+        /// <param name="length">The length of the first known rank, or only rank.</param>
+        /// <returns>The allocated object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public Array AllocateArrayUnknownRank(int length)
         {
-            if (!IsArray && !IsSZArray)
+            if (!IsArray)
                 throw new ArgumentException($"{this} is not an array type, and cannot allocate using AllocateArray()");
 
             int[] bounds = new int[GetClass()->AsArrayClass()->Rank];
@@ -769,6 +804,10 @@ namespace Cassowary.Intrinsics.VM
             return Array.CreateInstance(ElementMethodTable->AsType(), bounds);
         }
 
+        /// <summary>
+        /// Allocates and returns an object of the specified type, does not check if <see cref="MethodTable.CanAllocate"/> returns true.
+        /// </summary>
+        /// <returns>The allocated object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public object AllocateNoChecks()
         {
@@ -776,7 +815,7 @@ namespace Cassowary.Intrinsics.VM
             {
                 return string.Empty;
             }
-            if (IsArray || IsSZArray)
+            if (IsArray)
             {
                 return AllocateArray();
             }
@@ -789,18 +828,31 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Checks if this MethodTable can box from a pointer.
+        /// </summary>
+        /// <returns>True if if this MethodTable can box from a pointer, otherwise false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool CanBox()
         {
             return !IsVoid && !ContainsGenericVariables && !IsGenericInst;
         }
 
+        /// <summary>
+        /// Checks if this MethodTable can box strictly from a pointer.
+        /// </summary>
+        /// <returns>True if if this MethodTable can box strictly from a pointer, otherwise false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool CanBoxStrict()
         {
             return CanBox() && !ContainsPointers && !IsByRefLike && !IsAsyncPin && !IsInterface;
         }
 
+        /// <summary>
+        /// Boxes a value from a pointer of a specified type, checks if <see cref="CanBox"/> returns true.
+        /// </summary>
+        /// <param name="ptr">A pointer to the value.</param>
+        /// <returns>The boxed object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public object Box(void* ptr)
         {
@@ -811,6 +863,11 @@ namespace Cassowary.Intrinsics.VM
             return BoxNoChecks(ptr);
         }
 
+        /// <summary>
+        /// Strictly boxes a value from a pointer of a specified type, checks if <see cref="CanBoxStrict"/> returns true.
+        /// </summary>
+        /// <param name="ptr">A pointer to the value.</param>
+        /// <returns>The boxed object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public object BoxStrict(void* ptr)
         {
@@ -821,6 +878,11 @@ namespace Cassowary.Intrinsics.VM
             return BoxNoChecks(ptr);
         }
 
+        /// <summary>
+        /// Boxes a value from a pointer of a specified type, does not check if <see cref="CanBox"/> or <see cref="CanBoxStrict"/> returns true.
+        /// </summary>
+        /// <param name="ptr">A pointer to the value.</param>
+        /// <returns>The boxed object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public object BoxNoChecks(void* ptr)
         {
@@ -829,39 +891,46 @@ namespace Cassowary.Intrinsics.VM
             {
                 return new string((char*)Unsafe.Add(ptr, 4), 0, *(int*)ptr);
             }
-            if (IsSZArray || IsArray)
+            if (IsArray)
             {
                 Array array = AllocateArrayUnknownRank(*(int*)ptr);
-                Unsafe.CopyBlock(IntrinsicHelpers.GetPointer(array), ptr, (uint)(*(int*)ptr * ComponentSize) + 8);
+                Unsafe.CopyBlock(Intrinsics.GetPointer(array), ptr, (uint)(*(int*)ptr * ComponentSize) + 8);
                 return array;
             }
             else
             {
                 object obj = AllocateNoChecks();
-                Unsafe.Copy(ref IntrinsicHelpers.GetData(obj), ptr);
+                Unsafe.Copy(ref Intrinsics.GetData(obj), ptr);
                 return obj;
             }
         }
 
+        /// <summary>
+        /// Checks if this MethodTable can cast an object to the given Interface MethodTable.
+        /// </summary>
+        /// <param name="pMT">The MethodTable to check if can be casted to.</param>
+        /// <returns>True if this MethodTable can cast to the given MethodTable, otherwise false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public bool CanCastToInterface(MethodTable* pMT)
         {
             return GetInterfaces().Any(x => x.MethodTable == pMT);
         }
 
+        /// <summary>
+        /// Checks if this MethodTable can cast an object to the given MethodTable.
+        /// </summary>
+        /// <param name="pMT">The MethodTable to check if can be casted to.</param>
+        /// <returns>True if this MethodTable can cast to the given MethodTable, otherwise false.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public bool CanCastTo(MethodTable* pMT)
         {
             if (pMT->IsGenericInst == IsGenericInst &&
                 pMT->IsStringOrArray == IsStringOrArray &&
                 pMT->NumVirtuals == NumVirtuals &&
-                pMT->IsNullable == IsNullable)
+                pMT->IsNullable == IsNullable &&
+                pMT->IsArray == IsArray)
             {
-                if (pMT->IsSZArray && !IsSZArray)
-                {
-                    return false;
-                }
-                else if (pMT->IsArray && pMT->EEClass->Rank != EEClass->Rank)
+                if (pMT->IsArray && pMT->GetClass()->Rank != GetClass()->Rank)
                 {
                     return false;
                 }
@@ -876,6 +945,11 @@ namespace Cassowary.Intrinsics.VM
             return false;
         }
 
+        /// <summary>
+        /// Casts the given object to this MethodTable, checks if <see cref="MethodTable.CanCastTo"/> returns true.
+        /// </summary>
+        /// <param name="obj">The object to cast to the provided MethodTable.</param>
+        /// <returns>Obj as pMT.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public object Cast(object obj)
         {
@@ -894,6 +968,11 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Casts the given object to this MethodTable, does not check if <see cref="MethodTable.CanCastTo"/> returns true.
+        /// </summary>
+        /// <param name="obj">The object to cast to the provided MethodTable.</param>
+        /// <returns>Obj as pMT.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public object CastNoChecks(object obj)
         {
@@ -906,26 +985,68 @@ namespace Cassowary.Intrinsics.VM
                 {
                     return obj.ToString() ?? string.Empty;
                 }
-                else if (pMT->IsArray || pMT->IsSZArray)
+                else if (pMT->IsArray)
                 {
                     MethodTable* poMT = FromObject(obj);
 
-                    if (poMT->IsArray || poMT->IsSZArray)
-                        return pMT->BoxNoChecks(IntrinsicHelpers.GetPointer(obj));
+                    if (poMT->IsArray)
+                        return pMT->BoxNoChecks(Intrinsics.GetPointer(obj));
                     
                     copy = pMT->AllocateArray();
-                    Unsafe.CopyBlock(Unsafe.Add(IntrinsicHelpers.GetPointer(copy), 8), Unsafe.Add(IntrinsicHelpers.GetPointer(obj), 8), (uint)ComponentSize);
+                    Unsafe.CopyBlock(Unsafe.Add(Intrinsics.GetPointer(copy), 8), Unsafe.Add(Intrinsics.GetPointer(obj), 8), (uint)ComponentSize);
                     return copy;
                 }
                 else
                 {
                     copy = pMT->AllocateNoChecks();
-                    Unsafe.CopyBlock(ref IntrinsicHelpers.GetData(copy), ref IntrinsicHelpers.GetData(obj), (uint)pMT->BaseSize);
+                    Unsafe.CopyBlock(ref Intrinsics.GetData(copy), ref Intrinsics.GetData(obj), (uint)pMT->BaseSize);
                     return copy;
                 }
             }
         }
 
+        /// <summary>
+        /// Constructs an object of this MethodTable with the given parameters.
+        /// </summary>
+        /// <param name="obj">The object to be constructed.</param>
+        /// <param name="parameters">The parameters for the object's constructor.</param>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        public void Construct(object obj, params object[] parameters)
+        {
+            Type[] parameterTypes = new Type[parameters.Length];
+
+            for (int i = 0; i < parameters.Length; i++)
+                parameterTypes[i] = parameters[i].GetType();
+
+            ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes);
+            dynamic rtCtorInfo = Intrinsics.AsRuntimeConstructorInfo(ctorInfo);
+
+            rtCtorInfo.Invoke(obj, BindingFlags.Default, null, parameters, null);
+        }
+
+
+        /// <summary>
+        /// Constructs this MethodTable with the given parameters.
+        /// </summary>
+        /// <param name="parameters">The parameters for the object's constructor.</param>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        public object Construct(params object[] parameters)
+        {
+            Type[] parameterTypes = new Type[parameters.Length];
+
+            for (int i = 0; i < parameters.Length; i++)
+                parameterTypes[i] = parameters[i].GetType();
+
+            ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes);
+            dynamic rtCtorInfo = Intrinsics.AsRuntimeConstructorInfo(ctorInfo);
+
+            return rtCtorInfo.Invoke(BindingFlags.Default, null, parameters, null);
+        }
+
+        /// <summary>
+        /// Gets all interfaces that this MethodTable has.
+        /// </summary>
+        /// <returns>All interfaces that this MethodTable has.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public InterfaceInfo[] GetInterfaces()
         {

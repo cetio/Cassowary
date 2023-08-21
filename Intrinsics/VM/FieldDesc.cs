@@ -166,7 +166,8 @@ namespace Cassowary.Intrinsics.VM
             get
             {
                 FieldInfo fieldInfo = FieldInfo.GetFieldFromHandle(RuntimeFieldHandle);
-                dynamic rtFieldInfo = IntrinsicHelpers.AsRuntimeFieldInfo(fieldInfo);
+                dynamic rtFieldInfo = Intrinsics.AsRuntimeFieldInfo(fieldInfo);
+
                 return rtFieldInfo.FieldType;
             }
         }
@@ -176,7 +177,8 @@ namespace Cassowary.Intrinsics.VM
             get
             {
                 FieldInfo fieldInfo = FieldInfo.GetFieldFromHandle(RuntimeFieldHandle);
-                dynamic rtFieldInfo = IntrinsicHelpers.AsRuntimeFieldInfo(fieldInfo);
+                dynamic rtFieldInfo = Intrinsics.AsRuntimeFieldInfo(fieldInfo);
+
                 return rtFieldInfo.Name;
             }
         }
@@ -186,7 +188,8 @@ namespace Cassowary.Intrinsics.VM
             get
             {
                 FieldInfo fieldInfo = FieldInfo.GetFieldFromHandle(RuntimeFieldHandle);
-                dynamic rtFieldInfo = IntrinsicHelpers.AsRuntimeFieldInfo(fieldInfo);
+                dynamic rtFieldInfo = Intrinsics.AsRuntimeFieldInfo(fieldInfo);
+
                 return rtFieldInfo.Attributes;
             }
         }
@@ -196,7 +199,8 @@ namespace Cassowary.Intrinsics.VM
             get
             {
                 FieldInfo fieldInfo = FieldInfo.GetFieldFromHandle(RuntimeFieldHandle);
-                dynamic rtFieldInfo = IntrinsicHelpers.AsRuntimeFieldInfo(fieldInfo);
+                dynamic rtFieldInfo = Intrinsics.AsRuntimeFieldInfo(fieldInfo);
+
                 return rtFieldInfo.MetadataToken;
             }
         }
@@ -217,7 +221,7 @@ namespace Cassowary.Intrinsics.VM
         public void* GetAddress(void* ptr)
         {
             if (IsStatic)
-                return IntrinsicHelpers.GetPointer(GetValueSafe());
+                return Intrinsics.GetPointer(GetValueSafe());
 
             return Unsafe.Add(ptr, (int)Offset);
         }
@@ -229,7 +233,7 @@ namespace Cassowary.Intrinsics.VM
         /// <returns>The value of this field.</returns>
         public object GetValue(object obj)
         {
-            return MethodTable.FromType(FieldType)->BoxNoChecks(GetAddress(IntrinsicHelpers.GetPointer(obj)));
+            return MethodTable.FromType(FieldType)->BoxNoChecks(GetAddress(Intrinsics.GetPointer(obj)));
         }
 
         /// <summary>
@@ -262,7 +266,7 @@ namespace Cassowary.Intrinsics.VM
 
             if (obj == null)
             {
-                dynamic rtFieldInfo = IntrinsicHelpers.AsRuntimeFieldInfo(fieldInfo);
+                dynamic rtFieldInfo = Intrinsics.AsRuntimeFieldInfo(fieldInfo);
                 return rtFieldInfo.GetValue(null);
             }
 
