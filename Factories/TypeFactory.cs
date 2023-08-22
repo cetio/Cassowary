@@ -18,7 +18,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
-namespace Cassowary.Reflection.Factories
+namespace Cassowary.Factories
 {
     public static class TypeFactory
     {
@@ -90,7 +90,7 @@ namespace Cassowary.Reflection.Factories
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public static Type? ResolveType(string typeName, bool throwOnNull = false)
         {
-            Type? type = null;
+            Type? type;
 
             foreach (Assembly assembly in _assemblies)
             {
@@ -98,33 +98,10 @@ namespace Cassowary.Reflection.Factories
                     return type;
             }
 
-            if (throwOnNull && type == null)
+            if (throwOnNull)
                 throw new TypeLoadException($"Cannot find Type of name {typeName}");
 
-            return type;
-        }
-
-        /// <summary>
-        /// Resolves a type by its name in a specific assembly.
-        /// </summary>
-        /// <param name="assemblyName">The name of the assembly containing the type.</param>
-        /// <param name="typeName">The fully qualified name of the type.</param>
-        /// <returns>The resolved Type, or null if not found.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public static Type? ResolveType(string assemblyName, string typeName, bool throwOnNull = false)
-        {
-            Type? type = null;
-
-            foreach (Assembly assembly in _assemblies)
-            {
-                if (assembly.GetName().Name == assemblyName && (type = assembly.GetType(typeName)) != null)
-                    return type;
-            }
-
-            if (throwOnNull && type == null)
-                throw new TypeLoadException($"Cannot find Type of name {typeName} in Assembly of name {assemblyName}");
-
-            return type;
+            return null;
         }
     }
 }

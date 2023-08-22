@@ -18,7 +18,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
-namespace Cassowary.Reflection.Factories
+namespace Cassowary.Factories
 {
     public sealed class DelegateFactory
     {
@@ -114,49 +114,37 @@ namespace Cassowary.Reflection.Factories
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Delegate MakeConstructorDelegate(string typeName, Binder? binder, ParameterModifier[]? modifiers, params Type[] argumentTypes)
         {
-#pragma warning disable CS8604 // Possible null reference argument.
-            return MakeConstructorDelegate(TypeFactory.ResolveType(typeName, true), binder, modifiers, argumentTypes);
-#pragma warning restore CS8604 // Possible null reference argument.
+            return MakeConstructorDelegate(TypeFactory.ResolveType(typeName, true)!, binder, modifiers, argumentTypes);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Delegate MakeConstructorDelegate(string typeName, Binder? binder, params Type[] argumentTypes)
         {
-#pragma warning disable CS8604 // Possible null reference argument.
-            return MakeConstructorDelegate(TypeFactory.ResolveType(typeName, true), binder, null, argumentTypes);
-#pragma warning restore CS8604 // Possible null reference argument.
+            return MakeConstructorDelegate(TypeFactory.ResolveType(typeName, true)!, binder, null, argumentTypes);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Delegate MakeConstructorDelegate(string typeName, params Type[] argumentTypes)
         {
-#pragma warning disable CS8604 // Possible null reference argument.
-            return MakeConstructorDelegate(TypeFactory.ResolveType(typeName, true), null, null, argumentTypes);
-#pragma warning restore CS8604 // Possible null reference argument.
+            return MakeConstructorDelegate(TypeFactory.ResolveType(typeName, true)!, null, null, argumentTypes);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Delegate MakeConstructorDelegate(string assemblyName, string typeName, Binder? binder, ParameterModifier[]? modifiers, params Type[] argumentTypes)
         {
-#pragma warning disable CS8604 // Possible null reference argument.
-            return MakeConstructorDelegate(TypeFactory.ResolveType(assemblyName, typeName, true), binder, modifiers, argumentTypes);
-#pragma warning restore CS8604 // Possible null reference argument.
+            return MakeConstructorDelegate(Type.GetType(assemblyName + '.' + typeName, true)!, binder, modifiers, argumentTypes);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Delegate MakeConstructorDelegate(string assemblyName, string typeName, Binder? binder, params Type[] argumentTypes)
         {
-#pragma warning disable CS8604 // Possible null reference argument.
-            return MakeConstructorDelegate(TypeFactory.ResolveType(assemblyName, typeName, true), binder, null, argumentTypes);
-#pragma warning restore CS8604 // Possible null reference argument.
+            return MakeConstructorDelegate(Type.GetType(assemblyName + '.' + typeName, true)!, binder, null, argumentTypes);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Delegate MakeConstructorDelegate(string assemblyName, string typeName, params Type[] argumentTypes)
         {
-#pragma warning disable CS8604 // Possible null reference argument.
-            return MakeConstructorDelegate(TypeFactory.ResolveType(assemblyName, typeName, true), null, null, argumentTypes);
-#pragma warning restore CS8604 // Possible null reference argument.
+            return MakeConstructorDelegate(Type.GetType(assemblyName + '.' +  typeName, true)!, null, null, argumentTypes);
         }
 
         /// <summary>

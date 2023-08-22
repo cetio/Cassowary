@@ -34,17 +34,6 @@ namespace Cassowary.Intrinsics
         }
 
         /// <summary>
-        /// Gets the underlying MethodTable for the provided pointer.
-        /// </summary>
-        /// <param name="ptr">The pointer to get the MethodTable from.</param>
-        /// <returns>The MethodTable for the specified object.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static MethodTable* GetMethodTable(void* ptr)
-        {
-            return (MethodTable*)Unsafe.Sub(ptr, 8);
-        }
-
-        /// <summary>
         /// Allocates and returns an object of the specified type, checks if <see cref="MethodTable.CanAllocate"/> returns true.
         /// </summary>
         /// <param name="type">The type of the object to be allocated.</param>
