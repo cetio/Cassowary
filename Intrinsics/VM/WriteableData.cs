@@ -48,6 +48,9 @@ namespace Cassowary.Intrinsics.VM
         //[FieldOffset(4)]
         //public readonly RuntimeTypeHandle m_hExposedClassObject;
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated MethodTable is unrestored.
+        /// </summary>
         public bool IsUnrestored
         {
             get
@@ -56,6 +59,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated MethodTable is has an approximate parent.
+        /// </summary>
         public bool HasApproxParent
         {
             get
@@ -64,6 +70,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated MethodTable has any unrestored type key.
+        /// </summary>
         public bool HasUnrestoredTypeKey
         {
             get
@@ -72,6 +81,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated MethodTable is not fully loaded.
+        /// </summary>
         public bool IsNotFullyLoaded
         {
             get
@@ -80,6 +92,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated MethodTable has loaded its dependencies yet.
+        /// </summary>
         public bool DependenciesLoaded
         {
             get
@@ -88,6 +103,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated MethodTable can compare bits or use FastGetHashCode().
+        /// </summary>
         public bool CanCompareBitsOrUseFastGetHashCode
         {
             get
@@ -96,6 +114,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated MethodTable checked if it can compare bits or use FastGetHashCode().
+        /// </summary>
         public bool HasCheckedCanCompareBitsOrUseFastGetHashCode
         {
             get
@@ -104,6 +125,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the parent method table pointer is valid.
+        /// </summary>
         public bool ParentMethodTablePointerValid
         {
             get
@@ -112,6 +136,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not there are injected interface duplicates.
+        /// </summary>
         public bool HasInjectedInterfaceDuplicates
         {
             get

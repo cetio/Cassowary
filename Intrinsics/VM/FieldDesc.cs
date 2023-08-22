@@ -137,6 +137,9 @@ namespace Cassowary.Intrinsics.VM
         internal const int FIELD_OFFSET_BIG_RVA = FIELD_OFFSET_MAX - 5;
         internal const int FIELD_OFFSET_LAST_REAL_OFFSET = FIELD_OFFSET_MAX - 6;    // real fields have to be smaller than this
 
+        /// <summary>
+        /// The CorElementType of this FieldDesc.
+        /// </summary>
         public CorElementType CorElementType // m_type
         {
             get
@@ -145,6 +148,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// The CorTokenType of this FieldDesc.
+        /// </summary>
         public CorTokenType CorTokenType
         {
             get
@@ -153,6 +159,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is private.
+        /// </summary>
         public bool IsPrivate
         {
             get
@@ -161,6 +170,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is private protected.
+        /// </summary>
         public bool IsPrivateProtected
         {
             get
@@ -169,6 +181,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is internal.
+        /// </summary>
         public bool IsInternal
         {
             get
@@ -177,6 +192,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is protected.
+        /// </summary>
         public bool IsProtected
         {
             get
@@ -185,6 +203,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is protected internal.
+        /// </summary>
         public bool IsProtectedInternal
         {
             get
@@ -193,6 +214,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is public.
+        /// </summary>
         public bool IsPublic
         {
             get
@@ -201,6 +225,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is refers to an unplaced field.
+        /// </summary>
         public bool IsUnplaced
         {
             get
@@ -209,6 +236,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is refers to an unplaced GC Pointer.
+        /// </summary>
         public bool IsUnplacedGCPTR
         {
             get
@@ -216,7 +246,10 @@ namespace Cassowary.Intrinsics.VM
                 return Offset == FIELD_OFFSET_UNPLACED_GC_PTR;
             }
         }
-
+        
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is refers to an EnC New.
+        /// </summary>
         public bool IsEnCNew
         {
             get
@@ -225,6 +258,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this FieldDesc is refers to a Big Relative Value Address.
+        /// </summary>
         public bool IsBigRVA
         {
             get

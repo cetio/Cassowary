@@ -30,16 +30,22 @@ namespace Cassowary.Intrinsics.VM.EE
     [ShouldUsePointerNotObject]
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit)]
-    public struct NativeFieldDescriptor
+    public readonly unsafe struct NativeFieldDescriptor
     {
+        /// <summary>
+        /// Represents the type and count of a nested field.
+        /// </summary>
         [StructLayout(LayoutKind.Explicit)]
-        public struct NestedTypeAndCount
+        public unsafe struct NestedTypeAndCount
         {
-            [FieldOffset(0)] public MethodTable NestedType; // m_pNestedType
+            [FieldOffset(0)] public MethodTable* NestedType; // m_pNestedType
 
-            [FieldOffset(4)] public uint NumElements; // m_numElements
+            [FieldOffset(8)] public uint NumElements; // m_numElements
         }
 
+        /// <summary>
+        /// Represents the size and alignment of a native field.
+        /// </summary>
         [StructLayout(LayoutKind.Explicit)]
         public struct NativeSizeAndAlignment
         {
@@ -49,21 +55,24 @@ namespace Cassowary.Intrinsics.VM.EE
         }
 
         [FieldOffset(0)]
-        public FieldDesc FieldDesc; // m_pFD
+        public readonly FieldDesc FieldDesc; // m_pFD
 
         [FieldOffset(4)]
-        public NestedTypeAndCount TypeAndCount; // nestedTypeAndCount
+        public readonly NestedTypeAndCount TypeAndCount; // nestedTypeAndCount
 
         [FieldOffset(4)]
-        public NativeSizeAndAlignment SizeAndAlignment; // nativeSizeAndAlignment
+        public readonly NativeSizeAndAlignment SizeAndAlignment; // nativeSizeAndAlignment
 
         [FieldOffset(8)]
-        public uint Offset; // m_offset
+        public readonly uint Offset; // m_offset
 
         [FieldOffset(12)]
-        public NativeFieldCategory Category; // m_category
+        public readonly NativeFieldCategory Category; // m_category
 
-        public MethodTable NestedType
+        /// <summary>
+        /// Gets the nested MethodTable of the field.
+        /// </summary>
+        public MethodTable* NestedType
         {
             get
             {
@@ -71,6 +80,9 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
+        /// <summary>
+        /// Gets the number of elements in the field.
+        /// </summary>
         public uint NumElements
         {
             get
@@ -79,6 +91,9 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
+        /// <summary>
+        /// Gets the native size of the field.
+        /// </summary>
         public uint NativeSize
         {
             get
@@ -87,6 +102,9 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
+        /// <summary>
+        /// Gets the alignment requirement of the field.
+        /// </summary>
         public uint AlignmentRequirement
         {
             get
@@ -95,6 +113,9 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
+        /// <summary>
+        /// Gets a value indicating whether the field is of float category.
+        /// </summary>
         public bool IsFloat
         {
             get
@@ -103,6 +124,9 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
+        /// <summary>
+        /// Gets a value indicating whether the field is nested.
+        /// </summary>
         public bool IsNested
         {
             get
@@ -111,6 +135,9 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
+        /// <summary>
+        /// Gets a value indicating whether the field is of integer category.
+        /// </summary>
         public bool IsInteger
         {
             get
@@ -119,6 +146,9 @@ namespace Cassowary.Intrinsics.VM.EE
             }
         }
 
+        /// <summary>
+        /// Gets a value indicating whether the field is illegal.
+        /// </summary>
         public bool IsIllegal
         {
             get

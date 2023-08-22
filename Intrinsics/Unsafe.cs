@@ -22,28 +22,12 @@ namespace Cassowary.Intrinsics
 {
     public static unsafe class Unsafe
     {
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public static object CreateClone(object obj)
-        {
-            throw new NotImplementedException();
-            //object clone = Intrinsics.AllocateUninitializedClone(obj);
-            //CopyBlock(ref Intrinsics.GetHeapData(clone), ref Intrinsics.GetHeapData(obj), (uint)Intrinsics.GetRawObjectDataSize(obj));
-            //return clone;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static object CreateUninitializedObject(Type type)
-        {
-            return Intrinsics.GetMethodTable(type)->Allocate();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static object CreateUninitializedClone(object obj)
-        {
-            throw new NotImplementedException();
-            //return Intrinsics.AllocateUninitializedClone(obj);
-        }
-
+        /// <summary>
+        /// Reads a value from memory.
+        /// </summary>
+        /// <typeparam name="T">The type of the value to read.</typeparam>
+        /// <param name="source">Pointer to the source memory.</param>
+        /// <returns>The read value.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Read<T>(void* source)
         {
@@ -52,24 +36,12 @@ namespace Cassowary.Intrinsics
             return IL.Return<T>();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T ReadUnaligned<T>(void* source)
-        {
-            Ldarg(nameof(source));
-            Unaligned(1);
-            Ldobj(typeof(T));
-            return IL.Return<T>();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T ReadUnaligned<T>(ref byte source)
-        {
-            Ldarg(nameof(source));
-            Unaligned(1);
-            Ldobj(typeof(T));
-            return IL.Return<T>();
-        }
-
+        /// <summary>
+        /// Writes the value of type T to the specified memory location.
+        /// </summary>
+        /// <typeparam name="T">The type of value to write.</typeparam>
+        /// <param name="destination">The memory location to write to.</param>
+        /// <param name="value">The value to write.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write<T>(void* destination, T value)
         {
@@ -78,24 +50,12 @@ namespace Cassowary.Intrinsics
             Stobj(typeof(T));
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteUnaligned<T>(void* destination, T value)
-        {
-            Ldarg(nameof(destination));
-            Ldarg(nameof(value));
-            Unaligned(1);
-            Stobj(typeof(T));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteUnaligned<T>(ref byte destination, T value)
-        {
-            Ldarg(nameof(destination));
-            Ldarg(nameof(value));
-            Unaligned(1);
-            Stobj(typeof(T));
-        }
-
+        /// <summary>
+        /// Copies the value of type T to the specified memory location.
+        /// </summary>
+        /// <typeparam name="T">The type of value to copy.</typeparam>
+        /// <param name="destination">The memory location to copy to.</param>
+        /// <param name="source">The reference to the source value.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy<T>(void* destination, ref T source)
         {
@@ -105,6 +65,12 @@ namespace Cassowary.Intrinsics
             Stobj(typeof(T));
         }
 
+        /// <summary>
+        /// Copies the value from a memory location to the specified destination reference.
+        /// </summary>
+        /// <typeparam name="T">The type of value to copy.</typeparam>
+        /// <param name="destination">The reference to the destination value.</param>
+        /// <param name="source">The memory location of the source value.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy<T>(ref T destination, void* source)
         {
@@ -114,6 +80,12 @@ namespace Cassowary.Intrinsics
             Stobj(typeof(T));
         }
 
+        /// <summary>
+        /// Converts a reference to a value type to a pointer to the value.
+        /// </summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <param name="value">The reference to the value.</param>
+        /// <returns>A pointer to the value.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void* AsPointer<T>(ref T value)
         {
@@ -122,6 +94,12 @@ namespace Cassowary.Intrinsics
             return IL.ReturnPointer();
         }
 
+        /// <summary>
+        /// Copies a specified number of bytes from one memory location to another.
+        /// </summary>
+        /// <param name="destination">The destination memory location.</param>
+        /// <param name="source">The source memory location.</param>
+        /// <param name="byteCount">The number of bytes to copy.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void CopyBlock(void* destination, void* source, uint byteCount)
         {
@@ -131,6 +109,12 @@ namespace Cassowary.Intrinsics
             Cpblk();
         }
 
+        /// <summary>
+        /// Copies a specified number of bytes from one memory location to another using references.
+        /// </summary>
+        /// <param name="destination">The reference to the destination memory location.</param>
+        /// <param name="source">The reference to the source memory location.</param>
+        /// <param name="byteCount">The number of bytes to copy.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void CopyBlock(ref byte destination, ref byte source, uint byteCount)
         {
@@ -140,26 +124,12 @@ namespace Cassowary.Intrinsics
             Cpblk();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void CopyBlockUnaligned(void* destination, void* source, uint byteCount)
-        {
-            Ldarg(nameof(destination));
-            Ldarg(nameof(source));
-            Ldarg(nameof(byteCount));
-            Unaligned(1);
-            Cpblk();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void CopyBlockUnaligned(ref byte destination, ref byte source, uint byteCount)
-        {
-            Ldarg(nameof(destination));
-            Ldarg(nameof(source));
-            Ldarg(nameof(byteCount));
-            Unaligned(1);
-            Cpblk();
-        }
-
+        /// <summary>
+        /// Converts an object to the specified type.
+        /// </summary>
+        /// <typeparam name="T">The target type to convert to.</typeparam>
+        /// <param name="o">The object to convert.</param>
+        /// <returns>The converted object as the specified type.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T As<T>(object o)
             where T : class
@@ -168,6 +138,11 @@ namespace Cassowary.Intrinsics
             return IL.Return<T>();
         }
 
+        /// <summary>
+        /// Returns the object at source as a reference to type ref T.
+        /// </summary>
+        /// <param name="source">The source pointer to get a reference to T from.</param>
+        /// <returns>The object at source as ref T.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T AsRef<T>(void* source)
         {
@@ -189,6 +164,11 @@ namespace Cassowary.Intrinsics
 #endif
         }
 
+        /// <summary>
+        /// Returns source as a reference to type ref T.
+        /// </summary>
+        /// <param name="source">The source object to get a reference to T from.</param>
+        /// <returns>Source as ref T.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T AsRef<T>(in T source)
         {
@@ -196,6 +176,11 @@ namespace Cassowary.Intrinsics
             return ref IL.ReturnRef<T>();
         }
 
+        /// <summary>
+        /// Casts an object as the given type from the given type.
+        /// </summary>
+        /// <param name="source">The source object to cast as TTo.</param>
+        /// <returns>Source as TTo.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref TTo As<TFrom, TTo>(ref TFrom source)
         {
@@ -203,6 +188,12 @@ namespace Cassowary.Intrinsics
             return ref IL.ReturnRef<TTo>();
         }
 
+        /// <summary>
+        /// Adds an offset from a memory pointer.
+        /// </summary>
+        /// <param name="source">Pointer to the source memory.</param>
+        /// <param name="byteOffset">Offset to add.</param>
+        /// <returns>The adjusted memory pointer.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void* Add(void* source, int byteOffset)
         {
@@ -215,6 +206,13 @@ namespace Cassowary.Intrinsics
             return IL.ReturnPointer();
         }
 
+        /// <summary>
+        /// Adds an offset from a typed reference and returns the resulting reference.
+        /// </summary>
+        /// <typeparam name="T">The type of the reference.</typeparam>
+        /// <param name="source">The source reference.</param>
+        /// <param name="elementOffset">The offset in elements of type T.</param>
+        /// <returns>The resulting reference.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T Add<T>(ref T source, int elementOffset)
         {
@@ -227,6 +225,12 @@ namespace Cassowary.Intrinsics
             return ref IL.ReturnRef<T>();
         }
 
+        /// <summary>
+        /// Subtracts an offset from a memory pointer.
+        /// </summary>
+        /// <param name="source">Pointer to the source memory.</param>
+        /// <param name="byteOffset">Offset to subtract.</param>
+        /// <returns>The adjusted memory pointer.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void* Sub(void* source, int byteOffset)
         {
@@ -239,6 +243,13 @@ namespace Cassowary.Intrinsics
             return IL.ReturnPointer();
         }
 
+        /// <summary>
+        /// Subtracts an offset from a typed reference and returns the resulting reference.
+        /// </summary>
+        /// <typeparam name="T">The type of the reference.</typeparam>
+        /// <param name="source">The source reference.</param>
+        /// <param name="elementOffset">The offset in elements of type T.</param>
+        /// <returns>The resulting reference.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T Sub<T>(ref T source, int elementOffset)
         {

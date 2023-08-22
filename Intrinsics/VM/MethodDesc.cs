@@ -229,6 +229,9 @@ namespace Cassowary.Intrinsics.VM
         [FieldOffset(31)]
         public readonly bool ReadyToRunRejectedPrecompiledCode; // m_ReadyToRunRejectedPrecompiledCode
 
+        /// <summary>
+        /// Gets the MethodClassification of this MethodDesc.
+        /// </summary>
         public MethodClassification MethodClassification
         {
             get
@@ -237,6 +240,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is IL or JIT.
+        /// </summary>
         public bool IsIL
         {
             get
@@ -245,6 +251,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is an FCall (internal runtime call.)
+        /// </summary>
         public bool IsFCall
         {
             get
@@ -253,6 +262,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is NDirect (indirect call.)
+        /// </summary>
         public bool IsNDirect
         {
             get
@@ -261,6 +273,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is an EE implementation (internal runtime NDirect.)
+        /// </summary>
         public bool IsEEImpl
         {
             get
@@ -269,6 +284,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is part of an array.
+        /// </summary>
         public bool IsArray
         {
             get
@@ -277,6 +295,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is instantiated.
+        /// </summary>
         public bool IsInstantiated
         {
             get
@@ -285,6 +306,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is dynamic rather than runtime.
+        /// </summary>
         public bool IsDynamic
         {
             get
@@ -293,6 +317,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc has any non VTable slot.
+        /// </summary>
         public bool HasNonVtableSlot
         {
             get
@@ -301,6 +328,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is a method implementation.
+        /// </summary>
         public bool IsMethodImpl
         {
             get
@@ -309,6 +339,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is static.
+        /// </summary>
         public bool IsStatic
         {
             get
@@ -317,6 +350,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is a duplicate.
+        /// </summary>
         public bool IsDuplicate
         {
             get
@@ -325,6 +361,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is verified.
+        /// </summary>
         public bool IsVerified
         {
             get
@@ -333,6 +372,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is verifiable.
+        /// </summary>
         public bool IsVerifiable
         {
             get
@@ -341,6 +383,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is not inlined.
+        /// </summary>
         public bool IsNotInlined
         {
             get
@@ -349,6 +394,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is synchronized.
+        /// </summary>
         public bool IsSynchronized
         {
             get
@@ -357,6 +405,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc requires a full slot number.
+        /// </summary>
         public bool RequiresFullSlotNumber
         {
             get
@@ -365,6 +416,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc has a stable entrypoint.
+        /// </summary>
         public bool HasStableEntryPoint
         {
             get
@@ -373,6 +427,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc has precode.
+        /// </summary>
         public bool HasPrecode
         {
             get
@@ -381,6 +438,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is an unboxing stub.
+        /// </summary>
         public bool IsUnboxingStub
         {
             get
@@ -389,6 +449,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc has any native code slot.
+        /// </summary>
         public bool HasNativeCodeSlot
         {
             get
@@ -397,6 +460,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is JIT intrinsic.
+        /// </summary>
         public bool IsJitIntrinsic
         {
             get
@@ -405,6 +471,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc has a forwarded ValueType parameter.
+        /// </summary>
         public bool HasForwardedValuetypeParameter
         {
             get
@@ -413,6 +482,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc has had its ValueType parameters walked by the runtime.
+        /// </summary>
         public bool ValueTypeParametersWalked
         {
             get
@@ -421,6 +493,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc has no equivalent ValueType parameters.
+        /// </summary>
         public bool DoesNotHaveEquivalentValuetypeParameters
         {
             get
@@ -429,6 +504,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets the RuntimeMethodHandle of this MethodDesc.
+        /// </summary>
         internal RuntimeMethodHandle RuntimeMethodHandle
         {
             get
@@ -441,8 +519,20 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
-        public bool IsConstructor => MethodBase.GetMethodFromHandle(RuntimeMethodHandle) is ConstructorInfo;
+        /// <summary>
+        /// Gets a value determining whether or not this MethodDesc is associated with a constructor.
+        /// </summary>
+        public bool IsConstructor
+        {
+            get
+            {
+                return MethodBase.GetMethodFromHandle(RuntimeMethodHandle) is ConstructorInfo;
+            }
+        }
 
+        /// <summary>
+        /// Gets the name of this MethodDesc.
+        /// </summary>
         public string Name
         {
             get

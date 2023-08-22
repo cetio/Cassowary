@@ -36,6 +36,9 @@ namespace Cassowary.Intrinsics.VM
         [FieldOffset(24)]
         public readonly uint Signature; // m_sig
 
+        /// <summary>
+        /// Gets the offset from this structure to the start of the associated IL Stub.
+        /// </summary>
         public int OffsetOfStub
         {
             get
@@ -47,6 +50,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the associated MethodDesc or Stub is fully initialized.
+        /// </summary>
         public bool IsCompletelyInited()
         {
             return ILStub != (byte*)1;

@@ -25,13 +25,22 @@ namespace Cassowary.Intrinsics.VM.EE
     [StructLayout(LayoutKind.Explicit)]
     public readonly unsafe struct LayoutEEClass
     {
+        /// <summary>
+        /// The layout information of the EEClass.
+        /// </summary>
         [FieldOffset(72)]
         public readonly EEClassLayoutInfo LayoutInfo; //m_LayoutInfo
 
+        /// <summary>
+        /// The native layout information of the EEClass.
+        /// </summary>
         [CanBeNull]
         [FieldOffset(80)]
         public readonly EEClassNativeLayoutInfo* NativeLayoutInfo; //m_nativeLayoutInfo
 
+        /// <summary>
+        /// Checks whether the EEClass has native layout information.
+        /// </summary>
         public bool HasNativeLayoutInfo
         {
             get

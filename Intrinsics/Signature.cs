@@ -14,38 +14,58 @@
 //
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
+using JetBrains.Annotations;
 using System.Reflection;
 
 namespace Cassowary.Intrinsics
 {
-    public struct Signature
+    public class Signature
     {
         private object _nativeSignature;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Signature"/> struct.
+        /// </summary>
+        /// <param name="nativeSignature">The native signature object.</param>
+        /// <param name="typeSafetyCheck">Flag indicating whether to perform type safety check.</param>
+        /// <exception cref="ArgumentException">Thrown if <paramref name="typeSafetyCheck"/> is enabled and 
+        /// <paramref name="nativeSignature"/> is not of type <see cref="System.Signature"/>.</exception>
         public Signature(object nativeSignature, bool typeSafetyCheck = true)
         {
-            if (!typeSafetyCheck && nativeSignature.GetType() != Type.GetType("System.Signature"))
+            if (typeSafetyCheck && nativeSignature.GetType() != Type.GetType("System.Signature"))
+            {
                 throw new ArgumentException("'nativeSignature' argument is not of type System.Signature");
+            }
 
             _nativeSignature = nativeSignature;
         }
 
+        /// <summary>
+        /// Gets a safe signature from the given method information.
+        /// </summary>
+        /// <param name="methodInfo">The method information.</param>
+        /// <returns>The safe <see cref="Signature"/> instance.</returns>
         public static Signature GetSignatureSafe(MethodInfo methodInfo)
         {
             object rtMethodInfo = Intrinsics.AsRuntimeMethodInfo(methodInfo);
-            return new Signature(rtMethodInfo.GetType().GetProperty(
+            var signatureProperty = rtMethodInfo.GetType().GetProperty(
                 "Signature",
-                BindingFlags.NonPublic |
-                BindingFlags.Instance)!
-                .GetValue(rtMethodInfo)!);
+                BindingFlags.NonPublic | BindingFlags.Instance);
+
+            if (signatureProperty == null)
+                throw new InvalidOperationException("Failed to retrieve the 'Signature' property.");
+
+            var rtSignature = signatureProperty.GetValue(rtMethodInfo);
+            return new Signature(rtSignature);
         }
 
+        /// <summary>
+        /// Gets or sets the value of the native signature object.
+        /// </summary>
+        [NotNull]
         public object Value
         {
-            get
-            {
-                return _nativeSignature;
-            }
+            get => _nativeSignature;
             set
             {
                 if (value.GetType() != Type.GetType("System.Signature"))

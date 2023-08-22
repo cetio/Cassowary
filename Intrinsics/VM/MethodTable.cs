@@ -1454,7 +1454,7 @@ namespace Cassowary.Intrinsics.VM
                 else
                 {
                     copy = pMT->AllocateNoChecks();
-                    Unsafe.CopyBlock(ref Intrinsics.GetData(copy), ref Intrinsics.GetData(obj), (uint)pMT->BaseSize);
+                    Unsafe.CopyBlock(ref Intrinsics.GetData(copy), ref Intrinsics.GetData(obj), (uint)pMT->NumInstanceFieldBytes);
                     return copy;
                 }
             }
