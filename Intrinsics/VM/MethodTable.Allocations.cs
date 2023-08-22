@@ -8,8 +8,13 @@ namespace Cassowary.Intrinsics.VM
     public unsafe partial struct MethodTable
     {
         // The types nor methods should ever be null, unless they're removed.
-        private static Func<nint, object> AllocateInternal = Unsafe.As<Func<nint, object>>(DelegateFactory.MakeDelegate(Type.GetType("System.StubHelpers.StubHelpers")!.GetMethod("AllocateInternal", BindingFlags.NonPublic | BindingFlags.Static)!));
-        private static Func<nint, int, int, Array> AllocateSZArrayInternal = Unsafe.As<Func<nint, int, int, Array>>(DelegateFactory.MakeDelegate(typeof(GC).GetMethod("AllocateNewArray", BindingFlags.NonPublic | BindingFlags.Static)!));
+        private static Func<nint, object> _allocateInternal = 
+            Unsafe.As<Func<nint, object>>(DelegateFactory.MakeDelegate(Type.GetType("System.StubHelpers.StubHelpers")!
+            .GetMethod("AllocateInternal", BindingFlags.NonPublic | BindingFlags.Static)!));
+
+        private static Func<nint, int, int, Array> _allocateSZArrayInternal = 
+            Unsafe.As<Func<nint, int, int, Array>>(DelegateFactory.MakeDelegate(typeof(GC)
+            .GetMethod("AllocateNewArray", BindingFlags.NonPublic | BindingFlags.Static)!));
 
         /// <summary>
         /// Allocates this MethodTable, checks if <see cref="MethodTable.CanAllocate"/> returns true.
@@ -53,7 +58,7 @@ namespace Cassowary.Intrinsics.VM
             if (!IsSZArray)
                 throw new ArgumentException($"{this} is not an single-dimensional array type, and cannot allocate using Allocate(int)");
 
-            return Unsafe.As<object[]>(AllocateSZArrayInternal((nint)ElementMethodTable, length, 16));
+            return Unsafe.As<object[]>(_allocateSZArrayInternal((nint)ElementMethodTable, length, 16));
         }
 
         /// <summary>
@@ -81,7 +86,7 @@ namespace Cassowary.Intrinsics.VM
 
             fixed (MethodTable* ptr = &this)
             {
-                return AllocateInternal((nint)ptr);
+                return _allocateInternal((nint)ptr);
             }
         }
 
@@ -209,7 +214,7 @@ namespace Cassowary.Intrinsics.VM
                 else
                 {
                     copy = pMT->AllocateNoChecks();
-                    Unsafe.CopyBlock(ref Intrinsics.GetData(copy), ref Intrinsics.GetData(obj), (uint)pMT->NumInstanceFieldBytes);
+                    Unsafe.CopyBlock(ref Intrinsics.GetData(copy), ref Intrinsics.GetData(obj), (uint)pMT->GetNumInstanceFieldBytes());
                     return copy;
                 }
             }
