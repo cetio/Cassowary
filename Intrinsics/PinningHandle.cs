@@ -18,7 +18,7 @@ using JetBrains.Annotations;
 
 namespace Cassowary.Intrinsics
 {
-    public unsafe class PinningHandle
+    public sealed unsafe class PinningHandle
     {
         private ManualResetEvent _manualResetEvent;
         private object _target;
@@ -40,6 +40,17 @@ namespace Cassowary.Intrinsics
                     _manualResetEvent.WaitOne();
                 }
             });
+        }
+
+        /// <summary>
+        /// Gets the target of this handle.
+        /// </summary>
+        public object Target
+        {
+            get
+            {
+                return _target;
+            }
         }
 
         /// <summary>

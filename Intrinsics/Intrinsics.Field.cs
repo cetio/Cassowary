@@ -30,7 +30,7 @@ namespace Cassowary.Intrinsics
             // The type should always exist, if not, that's not my problem.
             return Cast(fieldInfo, Type.GetType("System.Reflection.RtFieldInfo")!);
         }
-        
+
         /// <summary>
         /// Converts a RuntimeFieldHandle to a runtime FieldHandle.
         /// </summary>

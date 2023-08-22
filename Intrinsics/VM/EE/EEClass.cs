@@ -161,34 +161,17 @@ namespace Cassowary.Intrinsics.VM.EE
         /// Gets the rank of the array.
         /// </summary>
         /// <remarks>
-        /// If the type is not an array or is a single dimensional array, the rank will be 0.
+        /// If the type is not an array, the rank will be 0.
         /// </remarks>
         public int Rank
         {
             get
             {
                 if (HasArrayClass)
-                {
-                    if (AsArrayClass()->Rank == 1)
-                    {
-                        return 0;
-                    }
-                    else
-                    {
-                        return AsArrayClass()->Rank - 1;
-                    }
-                }
-                else if (MethodTable->HasArrayDesc)
-                {
-                    if (MethodTable->ArrayDesc.Rank == 1)
-                    {
-                        return 0;
-                    }
-                    else
-                    {
-                        return MethodTable->ArrayDesc.Rank - 1;
-                    }
-                }
+                    return AsArrayClass()->Rank;
+
+                if (MethodTable->HasArrayDesc)
+                    return MethodTable->ArrayDesc.Rank;
 
                 return 0;
             }
@@ -205,19 +188,10 @@ namespace Cassowary.Intrinsics.VM.EE
             get
             {
                 if (MethodTable->HasArrayDesc)
-                {
-                    int arrayDescSize = LayoutEEClass->LayoutInfo.ManagedSize;
-                    int componentSize = MethodTable->ComponentSize;
-                    int arrayLength = MethodTable->ArrayDesc.Length;
-                    int size = arrayDescSize + componentSize * arrayLength - Rank;
-                    return size;
-                }
-                else if (HasArrayClass)
-                {
-                    int arrayClassSize = LayoutEEClass->LayoutInfo.ManagedSize;
-                    int size = arrayClassSize + LayoutEEClass->LayoutInfo.ManagedSize * Rank - Rank;
-                    return size;
-                }
+                    return LayoutEEClass->LayoutInfo.ManagedSize + MethodTable->ComponentSize * MethodTable->ArrayDesc.Length;
+
+                if (HasArrayClass)
+                    return MethodTable->ComponentSize * Rank;
 
                 return LayoutEEClass->LayoutInfo.ManagedSize;
             }
