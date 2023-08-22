@@ -15,6 +15,7 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 using Cassowary.Intrinsics.VM;
+using Cassowary.Intrinsics.VM.Cor;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -116,24 +117,45 @@ namespace Cassowary.Intrinsics
         }
 
         /// <summary>
-        /// Constructs an object using the default constructor.
+        /// Constructs an boxed object using the default constructor.
         /// </summary>
-        /// <param name="obj">The object to be constructed.</param>
+        /// <param name="instance">The object to be constructed.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Construct(object obj)
+        public static void Construct(object instance)
         {
-            GetMethodTable(obj)->Construct(obj);
+            GetMethodTable(instance)->Construct(instance);
         }
 
         /// <summary>
-        /// Constructs an object with the given parameters.
+        /// Constructs an boxed object with the given parameters.
         /// </summary>
-        /// <param name="obj">The object to be constructed.</param>
+        /// <param name="instance">The object to be constructed.</param>
         /// <param name="parameters">The parameters for the object's constructor.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Construct(object obj, params object[] parameters)
+        public static void Construct(object instance, params object[] parameters)
         {
-            GetMethodTable(obj)->Construct(obj, parameters);
+            GetMethodTable(instance)->Construct(instance, parameters);
+        }
+
+        /// <summary>
+        /// Constructs an unboxed object using the default constructor.
+        /// </summary>
+        /// <param name="instance">The object to be constructed.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Construct<T>(ref T instance)
+        {
+            GetMethodTable(instance)->Construct(ref instance);
+        }
+
+        /// <summary>
+        /// Constructs an unboxed object with the given parameters.
+        /// </summary>
+        /// <param name="instance">The object to be constructed.</param>
+        /// <param name="parameters">The parameters for the object's constructor.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Construct<T>(ref T instance, params object[] parameters)
+        {
+            GetMethodTable(instance)->Construct(ref instance, parameters);
         }
 
         /// <summary>
@@ -169,14 +191,10 @@ namespace Cassowary.Intrinsics
             MethodTable* pMT = GetMethodTable(obj);
 
             if (pMT->IsStringOrArray)
-            {
                 // Strings and Arrays have length fields at offset 0, overwriting that can have catastrophic effects.
-                NativeMemory.Clear(Unsafe.Add(GetPointer(obj), 8), (nuint)(((Array)obj).Length * pMT->ComponentSize));
-            }
-            else
-            {
-                NativeMemory.Clear(GetPointer(obj), (nuint)pMT->NumInstanceFieldBytes);
-            }
+                NativeMemory.Clear(Unsafe.Add(GetPointer(obj), CorDataOffsets.OFFSET_STRING), (nuint)(((Array)obj).Length * pMT->ComponentSize));
+
+            NativeMemory.Clear(GetPointer(obj), (nuint)pMT->GetNumInstanceFieldBytes());
         }
 
         /// <summary>
@@ -232,8 +250,7 @@ namespace Cassowary.Intrinsics
                 if (objs[i] == null)
                     throw new ArgumentNullException($"Object at index {i} is null.");
 
-                void* objPtr = (void*)GCHandle.Alloc(objs[i]).AddrOfPinnedObject();
-                voidArray[i] = objPtr;
+                voidArray[i] = GetPointer(objs[i]);
             }
 
             return voidArray;

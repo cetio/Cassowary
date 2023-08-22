@@ -15,6 +15,7 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 using Cassowary.Attributes;
+using Cassowary.Intrinsics.VM.Cor;
 using Cassowary.Intrinsics.VM.EE;
 using JetBrains.Annotations;
 using System.Collections;
@@ -1090,12 +1091,17 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
-        public int NumInstanceFieldBytes
+        public int GetNumInstanceFieldBytes()
         {
-            get
-            {
-                return BaseSize - GetClass()->BaseSizePadding;
-            }
+            int baseInstanceFieldBytes = BaseSize - GetClass()->BaseSizePadding;
+
+            if (IsArray)
+                baseInstanceFieldBytes += CorDataOffsets.OFFSET_ARRAY;
+
+            if (IsString)
+                baseInstanceFieldBytes += CorDataOffsets.OFFSET_STRING;
+
+            return baseInstanceFieldBytes;
         }
 
         /// <summary>
@@ -1340,15 +1346,15 @@ namespace Cassowary.Intrinsics.VM
         }
 
         /// <summary>
-        /// Constructs an object of this MethodTable with the given parameters.
+        /// Constructs the given boxed object of this MethodTable with the given parameters.
         /// </summary>
         /// <remarks>
         /// This does not ensure that the provided object is the same type as the associated type of this MethodTable, and should be checked before calling.
         /// </remarks>
-        /// <param name="obj">The object to be constructed.</param>
+        /// <param name="instance">The object to be constructed.</param>
         /// <param name="parameters">The parameters for the object's constructor.</param>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public void Construct(object obj, params object[] parameters)
+        public void Construct(object instance, params object[] parameters)
         {
             Type[] parameterTypes = new Type[parameters.Length];
 
@@ -1357,9 +1363,28 @@ namespace Cassowary.Intrinsics.VM
 
             // I really don't care if the constructor doesn't exist, it will throw eventually.
             ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes)!;
-            dynamic rtCtorInfo = Intrinsics.AsRuntimeConstructorInfo(ctorInfo);
+            Intrinsics.GetSignatureUnsafe(ctorInfo).Invoke(instance, parameters);
+        }
 
-            rtCtorInfo.Invoke(obj, BindingFlags.Default, null, parameters, null);
+        /// <summary>
+        /// Constructs the given unboxed object of this MethodTable with the given parameters.
+        /// </summary>
+        /// <remarks>
+        /// This does not ensure that the provided object is the same type as the associated type of this MethodTable, and should be checked before calling.
+        /// </remarks>
+        /// <param name="instance">The object to be constructed.</param>
+        /// <param name="parameters">The parameters for the object's constructor.</param>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        public void Construct<T>(ref T instance, params object[] parameters)
+        {
+            Type[] parameterTypes = new Type[parameters.Length];
+
+            for (int i = 0; i < parameters.Length; i++)
+                parameterTypes[i] = parameters[i].GetType();
+
+            // I really don't care if the constructor doesn't exist, it will throw eventually.
+            ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes)!;
+            instance = (T)Intrinsics.GetSignatureUnsafe(ctorInfo).Invoke(instance, parameters);
         }
 
         /// <summary>
@@ -1376,9 +1401,7 @@ namespace Cassowary.Intrinsics.VM
 
             // I really don't care if the constructor doesn't exist, it will throw eventually.
             ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes)!;
-            dynamic rtCtorInfo = Intrinsics.AsRuntimeConstructorInfo(ctorInfo);
-
-            return rtCtorInfo.Invoke(BindingFlags.Default, null, parameters, null);
+            return Intrinsics.GetSignatureUnsafe(ctorInfo).Invoke(parameters);
         }
 
         public static bool operator ==(MethodTable methodTable, object obj)

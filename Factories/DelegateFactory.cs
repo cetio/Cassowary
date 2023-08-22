@@ -75,7 +75,7 @@ namespace Cassowary.Factories
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Delegate MakeConstructorDelegate(Type type, Binder? binder, ParameterModifier[]? modifiers, params Type[] argumentTypes)
         {
-            ConstructorInfo ctor = type.GetConstructor(
+            ConstructorInfo ctorInfo = type.GetConstructor(
                 BindingFlags.NonPublic |
                 BindingFlags.Public |
                 BindingFlags.Instance,
@@ -99,7 +99,41 @@ namespace Cassowary.Factories
                 }
             }
 
-            il.Emit(OpCodes.Newobj, ctor);
+            il.Emit(OpCodes.Newobj, ctorInfo);
+            il.Emit(OpCodes.Ret);
+
+            return dynamicMethod.CreateDelegate(
+                MakeNewDelegateType(type, argumentTypes)
+            );
+        }
+
+        /// <summary>
+        /// Creates a delegate to a constructor of the specified type.
+        /// </summary>
+        /// <param name="type">The type containing the constructor.</param>
+        /// <param name="binder">An optional binder.</param>
+        /// <param name="modifiers">Optional parameter modifiers.</param>
+        /// <param name="argumentTypes">The types of constructor arguments.</param>
+        /// <returns>A delegate to the constructor.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Delegate MakeConstructorDelegate(Type type, ConstructorInfo ctorInfo, params Type[] argumentTypes)
+        {
+            DynamicMethod dynamicMethod = new DynamicMethod(string.Empty, type, argumentTypes);
+            ILGenerator il = dynamicMethod.GetILGenerator();
+
+            for (int i = 0; i < argumentTypes.Length; ++i)
+            {
+                switch (i)
+                {
+                    case 0: il.Emit(OpCodes.Ldarg_0); break;
+                    case 1: il.Emit(OpCodes.Ldarg_1); break;
+                    case 2: il.Emit(OpCodes.Ldarg_2); break;
+                    case 3: il.Emit(OpCodes.Ldarg_3); break;
+                    default: il.Emit(OpCodes.Ldarg, i); break;
+                }
+            }
+
+            il.Emit(OpCodes.Newobj, ctorInfo);
             il.Emit(OpCodes.Ret);
 
             return dynamicMethod.CreateDelegate(

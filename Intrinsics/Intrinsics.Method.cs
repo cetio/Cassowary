@@ -15,7 +15,6 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace Cassowary.Intrinsics
 {
@@ -65,17 +64,33 @@ namespace Cassowary.Intrinsics
         }
 
         /// <summary>
-        /// Checks if a method is a QCall (internal runtime call).
+        /// Gets the signature of a constructor safely.
         /// </summary>
-        /// <param name="methodInfo">The MethodInfo to check.</param>
-        /// <returns>True if the method is a QCall, otherwise false.</returns>
-        public static bool IsQCall(MethodInfo methodInfo)
+        /// <param name="ctorInfo">The ConstructorInfo to get the signature for.</param>
+        /// <returns>The constructors's signature.</returns>
+        public static Signature GetSignatureSafe(ConstructorInfo ctorInfo)
         {
-            return (methodInfo.GetCustomAttribute<LibraryImportAttribute>() != null &&
-                methodInfo.GetCustomAttribute<LibraryImportAttribute>()!.EntryPoint == "QCall") ||
-                (methodInfo.GetCustomAttribute<DllImportAttribute>() != null &&
-                methodInfo.GetCustomAttribute<DllImportAttribute>()!.EntryPoint == "QCall") ||
-                methodInfo.MethodImplementationFlags.HasFlag(MethodImplAttributes.InternalCall);
+            return Signature.GetSignatureSafe(ctorInfo);
+        }
+
+        /// <summary>
+        /// Gets the signature of a method unsafely.
+        /// </summary>
+        /// <param name="methodInfo">The MethodInfo to get the signature for.</param>
+        /// <returns>The method's signature.</returns>
+        public static Signature GetSignatureUnsafe(MethodInfo methodInfo)
+        {
+            return Signature.GetSignatureUnsafe(methodInfo);
+        }
+
+        /// <summary>
+        /// Gets the signature of a constructor unsafely.
+        /// </summary>
+        /// <param name="ctorInfo">The ConstructorInfo to get the signature for.</param>
+        /// <returns>The constructors's signature.</returns>
+        public static Signature GetSignatureUnsafe(ConstructorInfo ctorInfo)
+        {
+            return Signature.GetSignatureUnsafe(ctorInfo);
         }
     }
 }

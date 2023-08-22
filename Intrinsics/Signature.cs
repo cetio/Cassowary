@@ -14,23 +14,31 @@
 //
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
+using Cassowary.Factories;
 using JetBrains.Annotations;
 using System.Reflection;
 
 namespace Cassowary.Intrinsics
 {
+    /// <summary>
+    /// Provides easy access to native method signatures and invocation.
+    /// </summary>
     public sealed class Signature
     {
-        private object _nativeSignature;
+        private static Func<object?, nint, dynamic, bool, object> _invokerInternal =
+            Unsafe.As<Func<object?, nint, dynamic, bool, object>>(DelegateFactory.MakeDelegate(typeof(RuntimeMethodHandle)
+            .GetMethod("InvokeMethod", BindingFlags.NonPublic | BindingFlags.Static)!));
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Signature"/> struct.
-        /// </summary>
-        /// <param name="nativeSignature">The native signature object.</param>
-        /// <param name="typeSafetyCheck">Flag indicating whether to perform type safety check.</param>
-        /// <exception cref="ArgumentException">Thrown if <paramref name="typeSafetyCheck"/> is enabled and 
-        /// <paramref name="nativeSignature"/> is not of type <see cref="System.Signature"/>.</exception>
-        public Signature(object nativeSignature, bool typeSafetyCheck = true)
+        private static Func<dynamic, dynamic, object> _creatorInternal = 
+            Unsafe.As<Func<dynamic, dynamic, object>>(DelegateFactory.MakeConstructorDelegate(
+                Type.GetType("System.Signature")!, 
+                Type.GetType("System.Signature")!.GetConstructors()[1]!, 
+                typeof(object), typeof(object)));
+
+        private object _nativeSignature;
+        private bool _isConstructor;
+
+        private Signature(object nativeSignature, bool isConstructor, bool typeSafetyCheck = true)
         {
             if (typeSafetyCheck && nativeSignature.GetType() != Type.GetType("System.Signature"))
             {
@@ -38,25 +46,67 @@ namespace Cassowary.Intrinsics
             }
 
             _nativeSignature = nativeSignature;
+            _isConstructor = isConstructor;
         }
 
         /// <summary>
-        /// Gets a safe signature from the given method information.
+        /// Gets a signature safely from the given MethodInfo.
         /// </summary>
-        /// <param name="methodInfo">The method information.</param>
-        /// <returns>The safe <see cref="Signature"/> instance.</returns>
+        /// <param name="methodInfo">The MethodInfo to get the signature from.</param>
+        /// <returns>The signature of the provided MethodInfo.</returns>
         public static Signature GetSignatureSafe(MethodInfo methodInfo)
         {
             object rtMethodInfo = Intrinsics.AsRuntimeMethodInfo(methodInfo);
-            var signatureProperty = rtMethodInfo.GetType().GetProperty(
+            PropertyInfo signatureProperty = rtMethodInfo.GetType().GetProperty(
                 "Signature",
-                BindingFlags.NonPublic | BindingFlags.Instance);
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
 
             if (signatureProperty == null)
                 throw new InvalidOperationException("Failed to retrieve the 'Signature' property.");
 
-            var rtSignature = signatureProperty.GetValue(rtMethodInfo);
-            return new Signature(rtSignature);
+            object rtSignature = signatureProperty.GetValue(rtMethodInfo)!;
+            return new Signature(rtSignature, false, false);
+        }
+
+        /// <summary>
+        /// Gets a signature safely from the given ConstructorInfo.
+        /// </summary>
+        /// <param name="ctorInfo">The ConstructorInfo to get the signature from.</param>
+        /// <returns>The signature of the provided ConstructorInfo.</returns>
+        public static Signature GetSignatureSafe(ConstructorInfo ctorInfo)
+        {
+            object rtMethodInfo = Intrinsics.AsRuntimeConstructorInfo(ctorInfo);
+            PropertyInfo signatureProperty = rtMethodInfo.GetType().GetProperty(
+                "Signature",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+            if (signatureProperty == null)
+                throw new InvalidOperationException("Failed to retrieve the 'Signature' property.");
+
+            object rtSignature = signatureProperty.GetValue(rtMethodInfo)!;
+            return new Signature(rtSignature, true, false);
+        }
+
+        /// <summary>
+        /// Gets a signature unsafely from the given MethodInfo.
+        /// </summary>
+        /// <param name="methodInfo">The MethodInfo to get the signature from.</param>
+        /// <returns>The signature of the provided MethodInfo.</returns>
+        public static Signature GetSignatureUnsafe(MethodInfo methodInfo)
+        {
+            dynamic rtMethodInfo = Intrinsics.AsRuntimeMethodInfo(methodInfo);
+            return new Signature(_creatorInternal(rtMethodInfo, rtMethodInfo.DeclaringType), false, false);
+        }
+
+        /// <summary>
+        /// Gets a signature unsafely from the given MethodInfo.
+        /// </summary>
+        /// <param name="methodInfo">The MethodInfo to get the signature from.</param>
+        /// <returns>The signature of the provided MethodInfo.</returns>
+        public static Signature GetSignatureUnsafe(ConstructorInfo ctorInfo)
+        {
+            dynamic rtCtorInfo = Intrinsics.AsRuntimeConstructorInfo(ctorInfo);
+            return new Signature(_creatorInternal(rtCtorInfo, rtCtorInfo.DeclaringType), true, false);
         }
 
         /// <summary>
@@ -65,7 +115,10 @@ namespace Cassowary.Intrinsics
         [NotNull]
         public object Value
         {
-            get => _nativeSignature;
+            get
+            {
+                return _nativeSignature;
+            }
             set
             {
                 if (value.GetType() != Type.GetType("System.Signature"))
@@ -73,6 +126,35 @@ namespace Cassowary.Intrinsics
 
                 _nativeSignature = value;
             }
+        }
+
+        /// <summary>
+        /// Invokes the method associated with this Signature.
+        /// </summary>
+        /// <param name="instance">The instance to invoke on.</param>
+        /// <param name="parameters">The parameters to invoke the method with.</param>
+        /// <returns>The return of the invocation.</returns>
+        public unsafe object Invoke(object instance, params object[] parameters)
+        {
+            if (_isConstructor)
+            {
+                object ctord = _invokerInternal(instance, (nint)Intrinsics.GetPointerArray(parameters), _nativeSignature, _isConstructor);
+                uint size = (uint)Intrinsics.GetMethodTable(instance)->GetNumInstanceFieldBytes();
+                Unsafe.CopyBlock(ref Intrinsics.GetData(instance), ref Intrinsics.GetData(ctord), size);
+                return ctord;
+            }
+                
+            return _invokerInternal(instance, (nint)Intrinsics.GetPointerArray(parameters), _nativeSignature, _isConstructor);
+        }
+
+        /// <summary>
+        /// Invokes the method associated with this Signature.
+        /// </summary>
+        /// <param name="parameters">The parameters to invoke the method with.</param>
+        /// <returns>The return of the invocation.</returns>
+        public unsafe object Invoke(params object[] parameters)
+        {
+            return _invokerInternal(null, (nint)Intrinsics.GetPointerArray(parameters), _nativeSignature, _isConstructor);
         }
     }
 }

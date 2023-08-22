@@ -526,7 +526,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return MethodBase.GetMethodFromHandle(RuntimeMethodHandle) is ConstructorInfo;
+                return MethodBase.GetMethodFromHandle(RuntimeMethodHandle).IsConstructor;
             }
         }
 

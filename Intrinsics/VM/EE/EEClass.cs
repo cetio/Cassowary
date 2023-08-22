@@ -909,7 +909,7 @@ namespace Cassowary.Intrinsics.VM.EE
         {
             if (MethodTable->AsType() == typeof(System.Numerics.Vector))
             {
-                return MethodTable->NumInstanceFieldBytes;
+                return MethodTable->GetNumInstanceFieldBytes();
             }
             else if (MethodTable->AsType() == typeof(Vector64))
             {
