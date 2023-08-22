@@ -926,7 +926,7 @@ namespace Cassowary.Intrinsics.VM.EE
         {
             if (HasGuidInfo)
                 return GuidInfo;
-            
+
             GuidInfo guidInfo = new GuidInfo(MethodTable->AsType().GUID, true);
             return &guidInfo;
         }

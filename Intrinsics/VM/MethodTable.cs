@@ -15,8 +15,8 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 using Cassowary.Attributes;
+using Cassowary.Factories;
 using Cassowary.Intrinsics.VM.EE;
-using Cassowary.Reflection.Factories;
 using JetBrains.Annotations;
 using System.Collections;
 using System.Reflection;
@@ -1147,7 +1147,7 @@ namespace Cassowary.Intrinsics.VM
         /// <param name="lengths">The lengths of the Array to allocate.</param>
         /// <returns>The allocated object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public Array AllocateArray(params int[] lengths)
+        private Array AllocateArray(params int[] lengths)
         {
             if (!IsArray)
                 throw new ArgumentException($"{this} is not an array type, and cannot allocate using AllocateArray()");
@@ -1164,7 +1164,7 @@ namespace Cassowary.Intrinsics.VM
         /// <param name="length">The length of the first known rank, or only rank.</param>
         /// <returns>The allocated object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public Array AllocateArrayUnknownRank(int length)
+        private Array AllocateArrayUnknownRank(int length)
         {
             if (!IsArray)
                 throw new ArgumentException($"{this} is not an array type, and cannot allocate using AllocateArray()");
@@ -1199,6 +1199,11 @@ namespace Cassowary.Intrinsics.VM
                     return AllocateInternal((nint)ptr);
                 }
             }
+        }
+
+        public PinningHandle AllocateSizedAssociatedMemory()
+        {
+            return new PinningHandle(AllocateNoChecks());
         }
 
         /// <summary>
@@ -1503,12 +1508,6 @@ namespace Cassowary.Intrinsics.VM
             dynamic rtCtorInfo = Intrinsics.AsRuntimeConstructorInfo(ctorInfo);
 
             return rtCtorInfo.Invoke(BindingFlags.Default, null, parameters, null);
-        }
-
-        public bool Validate(void* ptr)
-        {
-            // The runtime already handles object validation, so there's no point in validating objects
-            return *Intrinsics.GetMethodTable(ptr) == this;
         }
 
         public static bool operator ==(MethodTable methodTable, object obj)
