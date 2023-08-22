@@ -56,6 +56,9 @@ namespace Cassowary.Intrinsics.VM
 
         // An array of MethodDesc* is supposed to go here, but I can't get it to work so I don't care.
 
+        /// <summary>
+        /// Gets a value determining whether or not the TokenRangeMask flag is present
+        /// </summary>
         public bool HasTokenRangeMask
         {
             get
@@ -64,6 +67,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the HasCompactEntryPoints flag is present
+        /// </summary>
         public bool HasCompactEntryPoints
         {
             get

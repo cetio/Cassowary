@@ -1,12 +1,31 @@
-﻿namespace Cassowary.Intrinsics.VM.Cor
+﻿//              FUCK OOP & FUCK INTERLACED LIBRARIES
+//
+//            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+//                   Version 2, December 2004
+// 
+// Copyright (C) 2004 Sam Hocevar<sam@hocevar.net>
+//
+// Everyone is permitted to copy and distribute verbatim or modified
+// copies of this license document, and changing it is allowed as long
+// as the name is changed.
+//
+//           DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE
+//  TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+//
+//  0. You just DO WHAT THE FUCK YOU WANT TO.
+
+using Cassowary.Attributes;
+
+namespace Cassowary.Intrinsics.VM.Cor
 {
+    [Intrinsic]
     public enum CorInfoHFAElemType
     {
-        CORINFO_HFA_ELEM_NONE,
-        CORINFO_HFA_ELEM_FLOAT,
-        CORINFO_HFA_ELEM_DOUBLE,
-        CORINFO_HFA_ELEM_VECTOR64,
-        CORINFO_HFA_ELEM_VECTOR128,
-        CORINFO_HFA_ELEM_VECTOR256
+        CORINFO_HFA_ELEM_NONE = 0,
+        CORINFO_HFA_ELEM_FLOAT = 1,
+        CORINFO_HFA_ELEM_DOUBLE = 2,
+        CORINFO_HFA_ELEM_VECTOR64 = 3,
+        CORINFO_HFA_ELEM_VECTOR128 = 4,
+        CORINFO_HFA_ELEM_VECTOR256 = 5
     }
 }

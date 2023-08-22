@@ -52,6 +52,9 @@ namespace Cassowary.Intrinsics.VM
         [FieldOffset(6)]
         public readonly MethodDesc* InstantiatedMethod; // InstantiatedMethod
 
+        /// <summary>
+        /// Gets a value determining whether or not the Stub is for a multicast delegate.
+        /// </summary>
         public bool IsMulticastDelegate
         {
             get
@@ -60,6 +63,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the Stub has an external entry point.
+        /// </summary>
         public bool HasExternalEntryPoint
         {
             get
@@ -68,6 +74,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the Stub is allocated in the loader heap.
+        /// </summary>
         public bool IsLoaderHeap
         {
             get
@@ -76,6 +85,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the Stub is an instantiating stub.
+        /// </summary>
         public bool IsIntantiatingStub
         {
             get
@@ -84,6 +96,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the Stub has unwind information.
+        /// </summary>
         public bool HasUnwindInfo
         {
             get
@@ -92,6 +107,9 @@ namespace Cassowary.Intrinsics.VM
             }
         }
 
+        /// <summary>
+        /// Gets a value determining whether or not the Stub has a thunk.
+        /// </summary>
         public bool HasThunk
         {
             get

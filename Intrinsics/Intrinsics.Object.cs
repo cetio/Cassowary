@@ -159,6 +159,30 @@ namespace Cassowary.Intrinsics
         }
 
         /// <summary>
+        /// Creates a deep clone of the specified object.
+        /// </summary>
+        /// <param name="obj">The object to clone.</param>
+        /// <returns>A cloned object.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        public static object CreateClone(object obj)
+        {
+            object clone = CreateUninitializedClone(obj);
+            Unsafe.CopyBlock(ref GetData(clone), ref GetData(obj), (uint)GetMethodTable(obj)->NumInstanceFieldBytes);
+            return clone;
+        }
+
+        /// <summary>
+        /// Creates an uninitialized clone of the specified object.
+        /// </summary>
+        /// <param name="obj">The object to clone.</param>
+        /// <returns>An uninitialized clone of the object.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static object CreateUninitializedClone(object obj)
+        {
+            return GetMethodTable(obj)->Allocate();
+        }
+
+        /// <summary>
         /// Gets the heap data for the specified object.
         /// </summary>
         /// <param name="obj">The object to get the heap data for.</param>

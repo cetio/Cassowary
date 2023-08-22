@@ -21,29 +21,54 @@ namespace Cassowary.Intrinsics
 {
     public static unsafe partial class Intrinsics
     {
+        /// <summary>
+        /// Converts a MethodInfo to a runtime MethodInfo object.
+        /// </summary>
+        /// <param name="methodInfo">The MethodInfo to convert.</param>
+        /// <returns>The runtime MethodInfo object.</returns>
         public static object AsRuntimeMethodInfo(MethodInfo methodInfo)
         {
             // The type should always exist, if not, that's not my problem.
             return Cast(methodInfo, Type.GetType("System.Reflection.RuntimeMethodInfo")!);
         }
 
+        /// <summary>
+        /// Converts a ConstructorInfo to a runtime ConstructorInfo object.
+        /// </summary>
+        /// <param name="ctorInfo">The ConstructorInfo to convert.</param>
+        /// <returns>The runtime ConstructorInfo object.</returns>
         public static object AsRuntimeConstructorInfo(ConstructorInfo ctorInfo)
         {
             // The type should always exist, if not, that's not my problem.
             return Cast(ctorInfo, Type.GetType("System.Reflection.RuntimeConstructorInfo")!);
         }
 
+        /// <summary>
+        /// Converts a RuntimeMethodHandle to a runtime RuntimeMethodHandleInternal object.
+        /// </summary>
+        /// <param name="methodHandle">The RuntimeMethodHandle to convert.</param>
+        /// <returns>The runtime RuntimeMethodHandleInternal object.</returns>
         public static object AsRuntimeMethodHandleInternal(RuntimeMethodHandle methodHandle)
         {
             // The type should always exist, if not, that's not my problem.
             return CastNoChecks(methodHandle, Type.GetType("System.RuntimeMethodHandleInternal")!);
         }
 
+        /// <summary>
+        /// Gets the signature of a method safely.
+        /// </summary>
+        /// <param name="methodInfo">The MethodInfo to get the signature for.</param>
+        /// <returns>The method's signature.</returns>
         public static Signature GetSignatureSafe(MethodInfo methodInfo)
         {
             return Signature.GetSignatureSafe(methodInfo);
         }
 
+        /// <summary>
+        /// Checks if a method is a QCall (internal runtime call).
+        /// </summary>
+        /// <param name="methodInfo">The MethodInfo to check.</param>
+        /// <returns>True if the method is a QCall, otherwise false.</returns>
         public static bool IsQCall(MethodInfo methodInfo)
         {
             return (methodInfo.GetCustomAttribute<LibraryImportAttribute>() != null &&
