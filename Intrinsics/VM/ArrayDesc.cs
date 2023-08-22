@@ -23,7 +23,7 @@ namespace Cassowary.Intrinsics.VM
     // However, I'm too lazy to implement ArrayObject and StringObject, so it will stay.
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit)]
-    public unsafe struct ArrayDesc
+    internal unsafe struct ArrayDesc
     {
         [FieldOffset(0)]
         public readonly int Length; // m_length

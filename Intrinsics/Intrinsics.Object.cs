@@ -116,6 +116,16 @@ namespace Cassowary.Intrinsics
         }
 
         /// <summary>
+        /// Constructs an object using the default constructor.
+        /// </summary>
+        /// <param name="obj">The object to be constructed.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Construct(object obj)
+        {
+            GetMethodTable(obj)->Construct(obj);
+        }
+
+        /// <summary>
         /// Constructs an object with the given parameters.
         /// </summary>
         /// <param name="obj">The object to be constructed.</param>
@@ -124,6 +134,17 @@ namespace Cassowary.Intrinsics
         public static void Construct(object obj, params object[] parameters)
         {
             GetMethodTable(obj)->Construct(obj, parameters);
+        }
+
+        /// <summary>
+        /// Constructs an object of the specified type using the default constructor.
+        /// </summary>
+        /// <param name="type">The type of the object to be constructed.</param>
+        /// <returns>The constructed object.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static object Construct(Type type)
+        {
+            return GetMethodTable(type)->Construct();
         }
 
         /// <summary>
@@ -150,11 +171,11 @@ namespace Cassowary.Intrinsics
             if (pMT->IsStringOrArray)
             {
                 // Strings and Arrays have length fields at offset 0, overwriting that can have catastrophic effects.
-                NativeMemory.Clear(Unsafe.Add(GetPointer(obj), 8), (nuint)pMT->BaseSize - 8);
+                NativeMemory.Clear(Unsafe.Add(GetPointer(obj), 8), (nuint)(((Array)obj).Length * pMT->ComponentSize));
             }
             else
             {
-                NativeMemory.Clear(GetPointer(obj), (nuint)pMT->BaseSize);
+                NativeMemory.Clear(GetPointer(obj), (nuint)pMT->NumInstanceFieldBytes);
             }
         }
 
@@ -166,9 +187,7 @@ namespace Cassowary.Intrinsics
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public static object CreateClone(object obj)
         {
-            object clone = CreateUninitializedClone(obj);
-            Unsafe.CopyBlock(ref GetData(clone), ref GetData(obj), (uint)GetMethodTable(obj)->NumInstanceFieldBytes);
-            return clone;
+            return Box(GetPointer(obj), obj.GetType());
         }
 
         /// <summary>

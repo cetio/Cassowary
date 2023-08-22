@@ -246,7 +246,7 @@ namespace Cassowary.Intrinsics.VM
                 return Offset == FIELD_OFFSET_UNPLACED_GC_PTR;
             }
         }
-        
+
         /// <summary>
         /// Gets a value determining whether or not this FieldDesc is refers to an EnC New.
         /// </summary>

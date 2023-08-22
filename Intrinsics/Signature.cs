@@ -19,7 +19,7 @@ using System.Reflection;
 
 namespace Cassowary.Intrinsics
 {
-    public class Signature
+    public sealed class Signature
     {
         private object _nativeSignature;
 
