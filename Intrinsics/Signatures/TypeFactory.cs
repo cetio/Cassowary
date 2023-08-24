@@ -18,7 +18,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
-namespace Cassowary.Factories
+namespace Cassowary.Intrinsics
 {
     public static class TypeFactory
     {
@@ -41,7 +41,7 @@ namespace Cassowary.Factories
         /// <param name="parameterTypes">The parameter types of the delegate.</param>
         /// <returns>The defined TypeBuilder for the delegate type.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public static TypeBuilder DefineDelegateType(string name, Type returnType, Type[] parameterTypes)
+        internal static TypeBuilder DefineDelegateType(string name, Type returnType, Type[] parameterTypes)
         {
             TypeBuilder typeBuilder = _moduleBuilder.DefineType(
                 name + $"%{_count++}%",
@@ -77,7 +77,7 @@ namespace Cassowary.Factories
         /// <param name="parent">The parent type of the type being defined.</param>
         /// <returns>The defined TypeBuilder for the type.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public static TypeBuilder DefineType(string name, TypeAttributes attr, Type parent)
+        internal static TypeBuilder DefineType(string name, TypeAttributes attr, Type parent)
         {
             return _moduleBuilder.DefineType(name + $"%{_count++}%", attr, parent);
         }
@@ -88,7 +88,7 @@ namespace Cassowary.Factories
         /// <param name="typeName">The fully qualified name of the type.</param>
         /// <returns>The resolved Type, or null if not found.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public static Type? ResolveType(string typeName, bool throwOnNull = false)
+        internal static Type? ResolveType(string typeName, bool throwOnNull = false)
         {
             Type? type;
 

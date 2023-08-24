@@ -159,7 +159,7 @@ namespace Cassowary.Intrinsics.VM
         internal static MethodTable* FromObject(object obj)
         {
             if (obj == null)
-                throw new ArgumentNullException(nameof(obj));
+                return FromType(typeof(object));
 
             if (obj is Array array)
             {
@@ -1346,28 +1346,7 @@ namespace Cassowary.Intrinsics.VM
         }
 
         /// <summary>
-        /// Constructs the given boxed object of this MethodTable with the given parameters.
-        /// </summary>
-        /// <remarks>
-        /// This does not ensure that the provided object is the same type as the associated type of this MethodTable, and should be checked before calling.
-        /// </remarks>
-        /// <param name="instance">The object to be constructed.</param>
-        /// <param name="parameters">The parameters for the object's constructor.</param>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public void Construct(object instance, params object[] parameters)
-        {
-            Type[] parameterTypes = new Type[parameters.Length];
-
-            for (int i = 0; i < parameters.Length; i++)
-                parameterTypes[i] = parameters[i].GetType();
-
-            // I really don't care if the constructor doesn't exist, it will throw eventually.
-            ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes)!;
-            Intrinsics.GetSignatureUnsafe(ctorInfo).Invoke(instance, parameters);
-        }
-
-        /// <summary>
-        /// Constructs the given unboxed object of this MethodTable with the given parameters.
+        /// Constructs on the given object of this MethodTable with the given parameters.
         /// </summary>
         /// <remarks>
         /// This does not ensure that the provided object is the same type as the associated type of this MethodTable, and should be checked before calling.
@@ -1384,12 +1363,15 @@ namespace Cassowary.Intrinsics.VM
 
             // I really don't care if the constructor doesn't exist, it will throw eventually.
             ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes)!;
-            instance = (T)Intrinsics.GetSignatureUnsafe(ctorInfo).Invoke(instance, parameters);
+            instance = (T)new Signature(ctorInfo).Invoke(ref instance, parameters);
         }
 
         /// <summary>
         /// Constructs this MethodTable with the given parameters.
         /// </summary>
+        /// <remarks>
+        /// To construct on an object use <see cref="Construct{T}(ref T, object[])"/>.
+        /// </remarks>
         /// <param name="parameters">The parameters for the object's constructor.</param>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public object Construct(params object[] parameters)
@@ -1401,7 +1383,7 @@ namespace Cassowary.Intrinsics.VM
 
             // I really don't care if the constructor doesn't exist, it will throw eventually.
             ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes)!;
-            return Intrinsics.GetSignatureUnsafe(ctorInfo).Invoke(parameters);
+            return new Signature(ctorInfo).Invoke(parameters);
         }
 
         public static bool operator ==(MethodTable methodTable, object obj)

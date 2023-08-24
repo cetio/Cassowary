@@ -52,45 +52,5 @@ namespace Cassowary.Intrinsics
             // The type should always exist, if not, that's not my problem.
             return CastNoChecks(methodHandle, Type.GetType("System.RuntimeMethodHandleInternal")!);
         }
-
-        /// <summary>
-        /// Gets the signature of a method safely.
-        /// </summary>
-        /// <param name="methodInfo">The MethodInfo to get the signature for.</param>
-        /// <returns>The method's signature.</returns>
-        public static Signature GetSignatureSafe(MethodInfo methodInfo)
-        {
-            return Signature.GetSignatureSafe(methodInfo);
-        }
-
-        /// <summary>
-        /// Gets the signature of a constructor safely.
-        /// </summary>
-        /// <param name="ctorInfo">The ConstructorInfo to get the signature for.</param>
-        /// <returns>The constructors's signature.</returns>
-        public static Signature GetSignatureSafe(ConstructorInfo ctorInfo)
-        {
-            return Signature.GetSignatureSafe(ctorInfo);
-        }
-
-        /// <summary>
-        /// Gets the signature of a method unsafely.
-        /// </summary>
-        /// <param name="methodInfo">The MethodInfo to get the signature for.</param>
-        /// <returns>The method's signature.</returns>
-        public static Signature GetSignatureUnsafe(MethodInfo methodInfo)
-        {
-            return Signature.GetSignatureUnsafe(methodInfo);
-        }
-
-        /// <summary>
-        /// Gets the signature of a constructor unsafely.
-        /// </summary>
-        /// <param name="ctorInfo">The ConstructorInfo to get the signature for.</param>
-        /// <returns>The constructors's signature.</returns>
-        public static Signature GetSignatureUnsafe(ConstructorInfo ctorInfo)
-        {
-            return Signature.GetSignatureUnsafe(ctorInfo);
-        }
     }
 }

@@ -18,7 +18,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
-namespace Cassowary.Factories
+namespace Cassowary.Intrinsics
 {
     public sealed class DelegateFactory
     {
@@ -169,118 +169,12 @@ namespace Cassowary.Factories
         /// <summary>
         /// Creates a delegate for a constructor of the specified type.
         /// </summary>
-        /// <param name="binder">An optional binder.</param>
-        /// <param name="modifiers">An optional array of parameter modifiers.</param>
-        /// <param name="argumentTypes">The types of constructor arguments.</param>
-        /// <returns>A delegate for the constructor.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Delegate MakeConstructorDelegate<T>(Binder? binder, ParameterModifier[]? modifiers, params Type[] argumentTypes)
-        {
-            return MakeConstructorDelegate(typeof(T), binder, modifiers, argumentTypes);
-        }
-
-        /// <summary>
-        /// Creates a delegate for a constructor of the specified type.
-        /// </summary>
-        /// <param name="binder">An optional binder.</param>
-        /// <param name="argumentTypes">The types of constructor arguments.</param>
-        /// <returns>A delegate for the constructor.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Delegate MakeConstructorDelegate<T>(Binder? binder, params Type[] argumentTypes)
-        {
-            return MakeConstructorDelegate(typeof(T), binder, null, argumentTypes);
-        }
-
-        /// <summary>
-        /// Creates a delegate for a constructor of the specified type.
-        /// </summary>
         /// <param name="argumentTypes">The types of constructor arguments.</param>
         /// <returns>A delegate for the constructor.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Delegate MakeConstructorDelegate<T>(params Type[] argumentTypes)
         {
             return MakeConstructorDelegate(typeof(T), null, null, argumentTypes);
-        }
-
-        /// <summary>
-        /// Creates a delegate for a constructor of the specified type.
-        /// </summary>
-        /// <param name="typeName">The name of the type.</param>
-        /// <param name="binder">An optional binder.</param>
-        /// <param name="modifiers">An optional array of parameter modifiers.</param>
-        /// <param name="argumentTypes">The types of constructor arguments.</param>
-        /// <returns>A delegate for the constructor.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Delegate MakeConstructorDelegate(string typeName, Binder? binder, ParameterModifier[]? modifiers, params Type[] argumentTypes)
-        {
-            return MakeConstructorDelegate(TypeFactory.ResolveType(typeName, true)!, binder, modifiers, argumentTypes);
-        }
-
-        /// <summary>
-        /// Creates a delegate for a constructor of the specified type.
-        /// </summary>
-        /// <param name="typeName">The name of the type.</param>
-        /// <param name="binder">An optional binder.</param>
-        /// <param name="argumentTypes">The types of constructor arguments.</param>
-        /// <returns>A delegate for the constructor.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Delegate MakeConstructorDelegate(string typeName, Binder? binder, params Type[] argumentTypes)
-        {
-            return MakeConstructorDelegate(TypeFactory.ResolveType(typeName, true)!, binder, null, argumentTypes);
-        }
-
-        /// <summary>
-        /// Creates a delegate for a constructor of the specified type.
-        /// </summary>
-        /// <param name="typeName">The name of the type.</param>
-        /// <param name="argumentTypes">The types of constructor arguments.</param>
-        /// <returns>A delegate for the constructor.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Delegate MakeConstructorDelegate(string typeName, params Type[] argumentTypes)
-        {
-            return MakeConstructorDelegate(TypeFactory.ResolveType(typeName, true)!, null, null, argumentTypes);
-        }
-
-        /// <summary>
-        /// Creates a delegate for a constructor of the specified type.
-        /// </summary>
-        /// <param name="assemblyName">The name of the assembly containing the type.</param>
-        /// <param name="typeName">The name of the type.</param>
-        /// <param name="binder">An optional binder.</param>
-        /// <param name="modifiers">An optional array of parameter modifiers.</param>
-        /// <param name="argumentTypes">The types of constructor arguments.</param>
-        /// <returns>A delegate for the constructor.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Delegate MakeConstructorDelegate(string assemblyName, string typeName, Binder? binder, ParameterModifier[]? modifiers, params Type[] argumentTypes)
-        {
-            return MakeConstructorDelegate(Type.GetType(assemblyName + '.' + typeName, true)!, binder, modifiers, argumentTypes);
-        }
-
-        /// <summary>
-        /// Creates a delegate for a constructor of the specified type.
-        /// </summary>
-        /// <param name="assemblyName">The name of the assembly containing the type.</param>
-        /// <param name="typeName">The name of the type.</param>
-        /// <param name="binder">An optional binder.</param>
-        /// <param name="argumentTypes">The types of constructor arguments.</param>
-        /// <returns>A delegate for the constructor.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Delegate MakeConstructorDelegate(string assemblyName, string typeName, Binder? binder, params Type[] argumentTypes)
-        {
-            return MakeConstructorDelegate(Type.GetType(assemblyName + '.' + typeName, true)!, binder, null, argumentTypes);
-        }
-
-        /// <summary>
-        /// Creates a delegate for a constructor of the specified type.
-        /// </summary>
-        /// <param name="assemblyName">The name of the assembly containing the type.</param>
-        /// <param name="typeName">The name of the type.</param>
-        /// <param name="argumentTypes">The types of constructor arguments.</param>
-        /// <returns>A delegate for the constructor.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Delegate MakeConstructorDelegate(string assemblyName, string typeName, params Type[] argumentTypes)
-        {
-            return MakeConstructorDelegate(Type.GetType(assemblyName + '.' + typeName, true)!, null, null, argumentTypes);
         }
 
         /// <summary>
@@ -318,18 +212,6 @@ namespace Cassowary.Factories
         public static Delegate MakeDelegate(Type delegateType, MethodInfo methodInfo, object? instance, bool throwOnFailure = true)
         {
             return Delegate.CreateDelegate(delegateType, instance, methodInfo, throwOnFailure)!;
-        }
-
-        /// <summary>
-        /// Creates a delegate using the provided delegate type and MethodInfo.
-        /// </summary>
-        /// <param name="delegateType">The type of delegate to create.</param>
-        /// <param name="methodInfo">The MethodInfo in which to create a new Delegate from.</param>
-        /// <param name="throwOnFailure">Whether to throw an exception on failure.</param>
-        /// <returns>A delegate representing the provided MethodInfo.</returns>
-        public static Delegate MakeDelegate(Type delegateType, MethodInfo methodInfo, bool throwOnFailure = true)
-        {
-            return Delegate.CreateDelegate(delegateType, methodInfo, throwOnFailure)!;
         }
     }
 }

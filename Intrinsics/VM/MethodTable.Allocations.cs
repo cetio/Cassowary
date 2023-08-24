@@ -1,5 +1,4 @@
-﻿using Cassowary.Factories;
-using Cassowary.Intrinsics.VM.Cor;
+﻿using Cassowary.Intrinsics.VM.Cor;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -8,13 +7,11 @@ namespace Cassowary.Intrinsics.VM
     public unsafe partial struct MethodTable
     {
         // The types nor methods should ever be null, unless they're removed.
-        private static Func<nint, object> _allocateInternal = 
-            Unsafe.As<Func<nint, object>>(DelegateFactory.MakeDelegate(Type.GetType("System.StubHelpers.StubHelpers")!
-            .GetMethod("AllocateInternal", BindingFlags.NonPublic | BindingFlags.Static)!));
+        private static Signature<nint, object> _allocateInternal = new(Type.GetType("System.StubHelpers.StubHelpers")!
+            .GetMethod("AllocateInternal", BindingFlags.NonPublic | BindingFlags.Static)!);
 
-        private static Func<nint, int, int, Array> _allocateSZArrayInternal = 
-            Unsafe.As<Func<nint, int, int, Array>>(DelegateFactory.MakeDelegate(typeof(GC)
-            .GetMethod("AllocateNewArray", BindingFlags.NonPublic | BindingFlags.Static)!));
+        private static Signature<nint, int, int, int> _allocateSZArrayInternal = new(typeof(GC)
+            .GetMethod("AllocateNewArray", BindingFlags.NonPublic | BindingFlags.Static)!);
 
         /// <summary>
         /// Allocates this MethodTable, checks if <see cref="MethodTable.CanAllocate"/> returns true.
@@ -31,18 +28,15 @@ namespace Cassowary.Intrinsics.VM
         }
 
         /// <summary>
-        /// Allocates this MethodTable, if it is an multi-dimensional Array.
+        /// Allocates this MethodTable, if it is a multi-dimensional Array.
         /// </summary>
         /// <param name="lengths">The lengths of the Array to allocate.</param>
         /// <returns>The allocated Array.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public Array Allocate(params int[] lengths)
+        public object Allocate(params int[] lengths)
         {
             if (!IsArray)
                 throw new ArgumentException($"{this} is not an array type, and cannot allocate using Allocate(params int[])");
-
-            if (IsSZArray)
-                return Allocate(lengths[0]);
 
             return Array.CreateInstance(ElementMethodTable->AsType(), lengths);
         }
@@ -53,12 +47,12 @@ namespace Cassowary.Intrinsics.VM
         /// <param name="length">The length of the Array to allocate.</param>
         /// <returns>The allocated Array.</returns>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public object[] Allocate(int length)
+        public object Allocate(int length)
         {
-            if (!IsSZArray)
-                throw new ArgumentException($"{this} is not an single-dimensional array type, and cannot allocate using Allocate(int)");
+            if (!IsArray)
+                throw new ArgumentException($"{this} is not an array type, and cannot allocate using Allocate(params int[])");
 
-            return Unsafe.As<object[]>(_allocateSZArrayInternal((nint)ElementMethodTable, length, 16));
+            return Array.CreateInstance(ElementMethodTable->AsType(), length);
         }
 
         /// <summary>
@@ -86,7 +80,7 @@ namespace Cassowary.Intrinsics.VM
 
             fixed (MethodTable* ptr = &this)
             {
-                return _allocateInternal((nint)ptr);
+                return _allocateInternal.Invoke((nint)ptr);
             }
         }
 
@@ -134,7 +128,7 @@ namespace Cassowary.Intrinsics.VM
 
             if (IsSZArray)
             {
-                Array array = Allocate(*(int*)ptr);
+                Array array = (Array)Allocate(*(int*)ptr);
                 Unsafe.CopyBlock(Intrinsics.GetPointer(array), ptr, (uint)ComponentSize + CorDataOffsets.OFFSET_ARRAY);
                 return array;
             }
@@ -150,7 +144,7 @@ namespace Cassowary.Intrinsics.VM
                     bytes += *(int*)ptr * ComponentSize;
                 }
 
-                Array array = Allocate(bounds);
+                Array array = (Array)Allocate(bounds);
                 Unsafe.CopyBlock(Intrinsics.GetPointer(array), ptr, (uint)bytes);
                 return array;
             }
