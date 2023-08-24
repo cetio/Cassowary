@@ -40,9 +40,31 @@ namespace Cassowary.Intrinsics
         /// <param name="type">The type of the object to be allocated.</param>
         /// <returns>The allocated object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static object? Allocate(Type type)
+        public static object Allocate(Type type)
         {
             return GetMethodTable(type)->Allocate();
+        }
+
+        /// <summary>
+        /// Allocates and returns an object of the specified type array with the specified lengths, checks if <see cref="MethodTable.CanAllocate"/> returns true.
+        /// </summary>
+        /// <param name="type">The type of the object to be allocated.</param>
+        /// <returns>The allocated object.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static object Allocate(Type type, int length)
+        {
+            return GetMethodTable(type)->Allocate(length);
+        }
+
+        /// <summary>
+        /// Allocates and returns an object of the specified type array with the specified lengths, checks if <see cref="MethodTable.CanAllocate"/> returns true.
+        /// </summary>
+        /// <param name="type">The type of the object to be allocated.</param>
+        /// <returns>The allocated object.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static object Allocate(Type type, params int[] lengths)
+        {
+            return GetMethodTable(type)->Allocate(lengths);
         }
 
         /// <summary>
@@ -105,57 +127,24 @@ namespace Cassowary.Intrinsics
         }
 
         /// <summary>
-        /// Boxes a value from a pointer of a specified type without performing checks.
-        /// </summary>
-        /// <param name="ptr">A pointer to the value.</param>
-        /// <param name="type">The type of the value.</param>
-        /// <returns>The boxed object.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static object BoxNoChecks(void* ptr, Type type)
-        {
-            return GetMethodTable(type)->BoxNoChecks(ptr);
-        }
-
-        /// <summary>
-        /// Constructs an boxed object using the default constructor.
-        /// </summary>
-        /// <param name="instance">The object to be constructed.</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Construct(object instance)
-        {
-            GetMethodTable(instance)->Construct(instance);
-        }
-
-        /// <summary>
-        /// Constructs an boxed object with the given parameters.
-        /// </summary>
-        /// <param name="instance">The object to be constructed.</param>
-        /// <param name="parameters">The parameters for the object's constructor.</param>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Construct(object instance, params object[] parameters)
-        {
-            GetMethodTable(instance)->Construct(instance, parameters);
-        }
-
-        /// <summary>
-        /// Constructs an unboxed object using the default constructor.
+        /// Constructs on an unboxed object using the default constructor.
         /// </summary>
         /// <param name="instance">The object to be constructed.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Construct<T>(ref T instance)
         {
-            GetMethodTable(instance)->Construct(ref instance);
+            GetMethodTable(instance!)->Construct(ref instance);
         }
 
         /// <summary>
-        /// Constructs an unboxed object with the given parameters.
+        /// Constructs on an unboxed object with the given parameters.
         /// </summary>
         /// <param name="instance">The object to be constructed.</param>
         /// <param name="parameters">The parameters for the object's constructor.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Construct<T>(ref T instance, params object[] parameters)
         {
-            GetMethodTable(instance)->Construct(ref instance, parameters);
+            GetMethodTable(instance!)->Construct(ref instance, parameters);
         }
 
         /// <summary>
@@ -236,22 +225,20 @@ namespace Cassowary.Intrinsics
         /// <param name="obj">The object to get the heap pointer for.</param>
         /// <returns>The heap pointer for the specified object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void* GetPointer(object obj)
+        public static void* GetPointer(object? obj)
         {
+            if (obj == null)
+                return null;
+
             return Unsafe.AsPointer(ref Unsafe.As<RelaxedGrossObject>(obj).Data);
         }
 
-        public static void** GetPointerArray(object[] objs)
+        public static void** GetPointerArray(object?[] objs)
         {
             void** voidArray = (void**)Marshal.AllocHGlobal(objs.Length * sizeof(void*));
 
             for (int i = 0; i < objs.Length; i++)
-            {
-                if (objs[i] == null)
-                    throw new ArgumentNullException($"Object at index {i} is null.");
-
                 voidArray[i] = GetPointer(objs[i]);
-            }
 
             return voidArray;
         }

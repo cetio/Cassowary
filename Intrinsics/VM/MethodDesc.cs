@@ -15,6 +15,7 @@
 //  0. You just DO WHAT THE FUCK YOU WANT TO.
 
 using Cassowary.Attributes;
+using Cassowary.Intrinsics;
 using JetBrains.Annotations;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -176,7 +177,6 @@ namespace Cassowary.Intrinsics.VM
         DoesNotHaveEquivalentValuetypeParameters = 0x8000
     }
 
-    [ShouldUsePointerNotObject]
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit)]
     public readonly unsafe struct MethodDesc
@@ -215,7 +215,7 @@ namespace Cassowary.Intrinsics.VM
 
         [CanBeNull]
         [FieldOffset(24)]
-        public readonly NativeCodeVersion NativeCodeVersion; // m_nativeCodeVersion
+        public readonly NativeCodeVersion? NativeCodeVersion; // m_nativeCodeVersion
 
         [FieldOffset(28)]
         public readonly bool NeedsMulticoreJitNotification; // m_needsMulticoreJitNotification
@@ -526,7 +526,7 @@ namespace Cassowary.Intrinsics.VM
         {
             get
             {
-                return MethodBase.GetMethodFromHandle(RuntimeMethodHandle).IsConstructor;
+                return MethodBase.GetMethodFromHandle(RuntimeMethodHandle)!.IsConstructor;
             }
         }
 
@@ -540,10 +540,21 @@ namespace Cassowary.Intrinsics.VM
                 if (IsConstructor)
                     return ".ctor";
 
-                MethodInfo methodInfo = (MethodInfo)MethodBase.GetMethodFromHandle(RuntimeMethodHandle);
+                MethodInfo methodInfo = (MethodInfo)MethodBase.GetMethodFromHandle(RuntimeMethodHandle)!;
                 dynamic rtMethodInfo = Intrinsics.AsRuntimeMethodInfo(methodInfo);
 
                 return rtMethodInfo.Name;
+            }
+        }
+
+        /// <summary>
+        /// Gets the Signature of this MethodDesc.
+        /// </summary>
+        public Signature Signature
+        {
+            get
+            {
+                return new(MethodBase.GetMethodFromHandle(RuntimeMethodHandle)!);
             }
         }
     }

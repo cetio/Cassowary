@@ -54,7 +54,8 @@ namespace Cassowary.Intrinsics.VM
         [FieldOffset(18)]
         public readonly ChunkFlags ChunkFlags; // m_flagsAndTokenRange
 
-        // An array of MethodDesc* is supposed to go here, but I can't get it to work so I don't care.
+        [FieldOffset(24)]
+        public readonly MethodDesc FirstMethodDesc; // m_flagsAndTokenRange
 
         /// <summary>
         /// Gets a value determining whether or not the TokenRangeMask flag is present
