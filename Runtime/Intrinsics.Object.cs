@@ -220,15 +220,19 @@ namespace Cassowary.Runtime
         }
 
         /// <summary>
-        /// Gets the heap pointer for the specified object.
+        /// Gets a pointer to the specified object.
         /// </summary>
         /// <param name="obj">The object to get the heap pointer for.</param>
-        /// <returns>The heap pointer for the specified object.</returns>
+        /// <param name="onlyHeap">A flag determining whether or not to avoid GC pointer if the object has or contains any references. Default false..</param>
+        /// <returns>A pointer for the specified object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void* GetPointer(object? obj)
+        public static void* GetPointer(object? obj, bool onlyHeap = false)
         {
             if (obj == null)
                 return null;
+
+            if (!onlyHeap && (GetMethodTable(obj)->ContainsPointers || GetMethodTable(obj)->IsByRefLike))
+                return Unsafe.AsPointer(ref obj);
 
             return Unsafe.AsPointer(ref Unsafe.As<RelaxedGrossObject>(obj).Data);
         }
