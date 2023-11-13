@@ -1,5 +1,9 @@
 # Cassowary
 
+> [!NOTE]  
+> This library is likely not going to be supported in the near future.
+> I have plans to do some refactoring, but it will be succeeded by Kingfisher!
+
 Cassowary is a low-level library designed to provide access to Clr (Common Language Runtime) structures and reflection capabilities. It serves as an alternative to other libraries like Novus or Son Of Strike, offering direct access to Clr features. While Cassowary may not be perfect, it aims to provide a way to interact with Clr structures that might not be readily available elsewhere.
 
 ## Goals
