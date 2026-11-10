@@ -5,7 +5,7 @@ VisualStudioVersion = 17.6.33829.357
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cassowary", "Cassowary.csproj", "{44CDE170-838F-4A3F-80C4-5A918725F208}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CassowaryDemo", "..\CassowaryDemo\CassowaryDemo.csproj", "{7C5803F6-96F2-4203-9B32-F09D8DDA285B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cassowary.Tests", "Tests\Cassowary.Tests.csproj", "{1F2E3D4C-5B6A-4987-8C9D-0E1F2A3B4C5D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,10 +17,10 @@ Global
 		{44CDE170-838F-4A3F-80C4-5A918725F208}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{44CDE170-838F-4A3F-80C4-5A918725F208}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{44CDE170-838F-4A3F-80C4-5A918725F208}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7C5803F6-96F2-4203-9B32-F09D8DDA285B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7C5803F6-96F2-4203-9B32-F09D8DDA285B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7C5803F6-96F2-4203-9B32-F09D8DDA285B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7C5803F6-96F2-4203-9B32-F09D8DDA285B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F2E3D4C-5B6A-4987-8C9D-0E1F2A3B4C5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F2E3D4C-5B6A-4987-8C9D-0E1F2A3B4C5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F2E3D4C-5B6A-4987-8C9D-0E1F2A3B4C5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F2E3D4C-5B6A-4987-8C9D-0E1F2A3B4C5D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
