@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Cassowary.Runtime.VM
 {
+    /// <summary>m_numCodeBytesAndFlags bit layout (stublink.h).</summary>
     public enum StubCodeFlags : uint
     {
         MULTICAST_DELEGATE_BIT = 0x80000000,
@@ -16,90 +17,50 @@ namespace Cassowary.Runtime.VM
         MAX_CODEBYTES = CODEBYTES_MASK + 1,
     };
 
+    /// <summary>
+    ///     Native stub view: refcount at 0, code-bytes-and-flags uint at 4, and a union
+    ///     holding PatchOffset (ushort) or InstantiatedMethod (pointer) at offset 8.
+    /// </summary>
     [UseAsPointer]
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit)]
     public readonly unsafe struct Stub
     {
+        /// <summary>Reference count (m_refcount).</summary>
         [FieldOffset(0)]
-        public readonly uint RefCount; // m_refcount
+        public readonly uint RefCount;
 
+        /// <summary>Raw code-byte-count and flags word (m_numCodeBytesAndFlags).</summary>
         [FieldOffset(4)]
-        public readonly StubCodeFlags CodeFlags; // m_numCodeBytesAndFlags
+        public readonly uint CodeFlagsAndBytes;
 
-        [FieldOffset(4)]
-        public readonly uint NumCodeBytes; // m_numCodeBytesAndFlags
+        /// <summary>Union member at 8: patch offset (USHORT).</summary>
+        [FieldOffset(8)]
+        public readonly ushort PatchOffset;
 
-        [FieldOffset(6)]
-        public readonly ushort PatchOffset; // PatchOffset
+        /// <summary>Union member at 8: instantiated method pointer.</summary>
+        [FieldOffset(8)]
+        public readonly MethodDesc* InstantiatedMethod;
 
-        [FieldOffset(6)]
-        public readonly MethodDesc* InstantiatedMethod; // InstantiatedMethod
-
-        /// <summary>
-        /// Gets a value determining whether or not the Stub is for a multicast delegate.
-        /// </summary>
-        public bool IsMulticastDelegate
+        /// <summary>Number of code bytes with the flag bits masked off.</summary>
+        public uint NumCodeBytes
         {
             get
             {
-                return CodeFlags.HasFlag(StubCodeFlags.MULTICAST_DELEGATE_BIT);
+                return CodeFlagsAndBytes & (uint)StubCodeFlags.CODEBYTES_MASK;
             }
         }
 
-        /// <summary>
-        /// Gets a value determining whether or not the Stub has an external entry point.
-        /// </summary>
-        public bool HasExternalEntryPoint
-        {
-            get
-            {
-                return CodeFlags.HasFlag(StubCodeFlags.EXTERNAL_ENTRY_BIT);
-            }
-        }
+        public bool IsMulticastDelegate => (CodeFlagsAndBytes & (uint)StubCodeFlags.MULTICAST_DELEGATE_BIT) != 0;
 
-        /// <summary>
-        /// Gets a value determining whether or not the Stub is allocated in the loader heap.
-        /// </summary>
-        public bool IsLoaderHeap
-        {
-            get
-            {
-                return CodeFlags.HasFlag(StubCodeFlags.LOADER_HEAP_BIT);
-            }
-        }
+        public bool HasExternalEntryPoint => (CodeFlagsAndBytes & (uint)StubCodeFlags.EXTERNAL_ENTRY_BIT) != 0;
 
-        /// <summary>
-        /// Gets a value determining whether or not the Stub is an instantiating stub.
-        /// </summary>
-        public bool IsIntantiatingStub
-        {
-            get
-            {
-                return CodeFlags.HasFlag(StubCodeFlags.INSTANTIATING_STUB_BIT);
-            }
-        }
+        public bool IsLoaderHeap => (CodeFlagsAndBytes & (uint)StubCodeFlags.LOADER_HEAP_BIT) != 0;
 
-        /// <summary>
-        /// Gets a value determining whether or not the Stub has unwind information.
-        /// </summary>
-        public bool HasUnwindInfo
-        {
-            get
-            {
-                return CodeFlags.HasFlag(StubCodeFlags.UNWIND_INFO_BIT);
-            }
-        }
+        public bool IsIntantiatingStub => (CodeFlagsAndBytes & (uint)StubCodeFlags.INSTANTIATING_STUB_BIT) != 0;
 
-        /// <summary>
-        /// Gets a value determining whether or not the Stub has a thunk.
-        /// </summary>
-        public bool HasThunk
-        {
-            get
-            {
-                return CodeFlags.HasFlag(StubCodeFlags.THUNK_BIT);
-            }
-        }
+        public bool HasUnwindInfo => (CodeFlagsAndBytes & (uint)StubCodeFlags.UNWIND_INFO_BIT) != 0;
+
+        public bool HasThunk => (CodeFlagsAndBytes & (uint)StubCodeFlags.THUNK_BIT) != 0;
     }
 }

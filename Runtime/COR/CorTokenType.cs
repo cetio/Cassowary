@@ -4,7 +4,7 @@ namespace Cassowary.Runtime.Cor
 {
     /// <summary>
     ///     Metadata token tags from corhdr.h. These values occupy the high byte of a metadata
-    ///     token; OR them with a row identifier to form a complete token.
+    ///     token, OR them with a row identifier to form a complete token.
     /// </summary>
     [Intrinsic]
     public enum CorTokenType : int

@@ -3,124 +3,62 @@ using System.Runtime.InteropServices;
 
 namespace Cassowary.Runtime.VM.EE
 {
+    /// <summary>
+    ///     m_bFlags values of the native EEClassLayoutInfo (.NET 8 class.h).
+    /// </summary>
     [Flags]
     public enum LayoutFlags : byte
     {
-        /// <summary>
-        ///     TRUE if the GC layout of the class is bit-for-bit identical
-        ///     to its unmanaged counterpart (i.e. no internal reference fields,
-        ///     no ansi-unicode char conversions required, etc.) Used to
-        ///     optimize marshaling.
-        /// </summary>
+        /// <summary>GC layout is bit-for-bit identical to the unmanaged counterpart.</summary>
         Blittable = 0x01,
-        /// <summary>
-        ///     Is this type also sequential in managed memory?
-        /// </summary>
+        /// <summary>Type is also sequential in managed memory.</summary>
         ManagedSequential = 0x02,
-        /// <summary>
-        ///     When a sequential/explicit type has no fields, it is conceptually
-        ///     zero-sized, but actually is 1 byte in length. This holds onto this
-        ///     fact and allows us to revert the 1 byte of padding when another
-        ///     explicit type inherits from this type.
-        /// </summary>
+        /// <summary>Type was conceptually zero-sized (bumped to 1 byte natively).</summary>
         ZeroSized = 0x04,
-        /// <summary>
-        ///     The size of the struct is explicitly specified in the meta-data.
-        /// </summary>
+        /// <summary>Size is explicitly specified in metadata.</summary>
         HasExplicitSize = 0x08,
-
-        /// <summary>
-        ///     Whether a native struct is passed in registers.
-        /// </summary>
-        NativePassInRegisters = 0x10,
-        R4HFA = 0x10,
-        R8HFA = 0x20
+        /// <summary>Type recursively has a field that is LayoutKind.Auto and not an enum.</summary>
+        HasAutoLayoutFieldInLayout = 0x10,
+        /// <summary>Type is Int128 or recursively has an Int128 field.</summary>
+        IsOrHasInt128Field = 0x20
     }
 
+    /// <summary>
+    ///     Native EEClassLayoutInfo value (8 bytes, embedded inside a LayoutEEClass).
+    /// </summary>
     [Intrinsic]
-    [StructLayout(LayoutKind.Explicit)]
+    [StructLayout(LayoutKind.Explicit, Size = 8)]
     public unsafe struct EEClassLayoutInfo
     {
+        /// <summary>Managed size in bytes (m_cbManagedSize).</summary>
         [FieldOffset(0)]
         public int ManagedSize;
 
-        // 1,2,4 or 8: this is equal to the largest of the alignment requirements
-        // of each of the EEClass's members. If the NStruct extends another NStruct,
-        // the base NStruct is treated as the first member for the purpose of
-        // this calculation.
-
-        // Post V1.0 addition: This is the equivalent of m_LargestAlignmentRequirementOfAllMember
-        // for the managed layout.
-
+        /// <summary>
+        ///     Largest managed alignment requirement of all members
+        ///     (m_ManagedLargestAlignmentRequirementOfAllMembers).
+        /// </summary>
         [FieldOffset(4)]
         public readonly byte ManagedLargestAlignmentRequirementOfAllMembers;
 
-        /// <summary>
-        /// Managed layout flags
-        /// </summary>
+        /// <summary>Managed layout flags (m_bFlags).</summary>
         [FieldOffset(5)]
         public readonly LayoutFlags LayoutFlags;
 
-        /// <summary>
-        /// Packing size in bytes (1, 2, 4, 8 etc.)
-        /// </summary>
-        [FieldOffset(9)]
+        /// <summary>Packing size in bytes (m_cbPackingSize).</summary>
+        [FieldOffset(6)]
         public readonly byte PackingSize;
 
-        public bool IsBlittable
-        {
-            get
-            {
-                return LayoutFlags.HasFlag(LayoutFlags.Blittable);
-            }
-        }
+        public bool IsBlittable => (LayoutFlags & LayoutFlags.Blittable) != 0;
 
-        public bool IsManagedSequential
-        {
-            get
-            {
-                return LayoutFlags.HasFlag(LayoutFlags.ManagedSequential);
-            }
-        }
+        public bool IsManagedSequential => (LayoutFlags & LayoutFlags.ManagedSequential) != 0;
 
-        public bool IsZeroSized
-        {
-            get
-            {
-                return LayoutFlags.HasFlag(LayoutFlags.ZeroSized);
-            }
-        }
+        public bool IsZeroSized => (LayoutFlags & LayoutFlags.ZeroSized) != 0;
 
-        public bool HasExplicitSize
-        {
-            get
-            {
-                return LayoutFlags.HasFlag(LayoutFlags.HasExplicitSize);
-            }
-        }
+        public bool HasExplicitSize => (LayoutFlags & LayoutFlags.HasExplicitSize) != 0;
 
-        public bool IsNativePassInRegisters
-        {
-            get
-            {
-                return LayoutFlags.HasFlag(LayoutFlags.NativePassInRegisters);
-            }
-        }
+        public bool HasAutoLayoutField => (LayoutFlags & LayoutFlags.HasAutoLayoutFieldInLayout) != 0;
 
-        public bool IsR4HFA
-        {
-            get
-            {
-                return LayoutFlags.HasFlag(LayoutFlags.R4HFA);
-            }
-        }
-
-        public bool IsR8HFA
-        {
-            get
-            {
-                return LayoutFlags.HasFlag(LayoutFlags.R8HFA);
-            }
-        }
+        public bool IsInt128OrHasInt128Fields => (LayoutFlags & LayoutFlags.IsOrHasInt128Field) != 0;
     }
 }

@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Cassowary.Runtime.VM.EE
 {
+    /// <summary>NativeFieldCategory from fieldmarshaler.h (short enum).</summary>
     public enum NativeFieldCategory : short
     {
         FLOAT,
@@ -11,134 +12,54 @@ namespace Cassowary.Runtime.VM.EE
         ILLEGAL
     }
 
+    /// <summary>
+    ///     Native NativeFieldDescriptor view (32 bytes on x64):
+    ///     FieldDesc* at 0, 16-byte union at 8 (nested type at 8 / element count at 16, or
+    ///     native size at 8 / alignment at 12), offset at 24, category at 28.
+    /// </summary>
     [UseAsPointer]
     [Intrinsic]
-    [StructLayout(LayoutKind.Explicit)]
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
     public readonly unsafe struct NativeFieldDescriptor
     {
-        /// <summary>
-        /// Represents the type and count of a nested field.
-        /// </summary>
-        [StructLayout(LayoutKind.Explicit)]
-        public unsafe struct NestedTypeAndCount
-        {
-            [FieldOffset(0)] public MethodTable* NestedType; // m_pNestedType
-
-            [FieldOffset(8)] public uint NumElements; // m_numElements
-        }
-
-        /// <summary>
-        /// Represents the size and alignment of a native field.
-        /// </summary>
-        [StructLayout(LayoutKind.Explicit)]
-        public struct NativeSizeAndAlignment
-        {
-            [FieldOffset(0)] public uint NativeSize; // nativeSize
-
-            [FieldOffset(4)] public uint AlignmentRequirement; // alignmentRequirement
-        }
-
+        /// <summary>Pointer to the managed FieldDesc this native field marshals (m_pFD).</summary>
         [FieldOffset(0)]
-        public readonly FieldDesc FieldDesc; // m_pFD
+        public readonly FieldDesc* FieldDesc;
 
-        [FieldOffset(4)]
-        public readonly NestedTypeAndCount TypeAndCount; // nestedTypeAndCount
-
-        [FieldOffset(4)]
-        public readonly NativeSizeAndAlignment SizeAndAlignment; // nativeSizeAndAlignment
-
+        /// <summary>Nested field: MethodTable of the nested type (union member, offset 8).</summary>
         [FieldOffset(8)]
-        public readonly uint Offset; // m_offset
+        public readonly MethodTable* NestedType;
 
+        /// <summary>Nested field: element count (union member, offset 16, ULONG=4 bytes).</summary>
+        [FieldOffset(16)]
+        public readonly uint NumElements;
+
+        /// <summary>Simple field: native size in bytes (union member, offset 8).</summary>
+        [FieldOffset(8)]
+        public readonly uint NativeSize;
+
+        /// <summary>Simple field: alignment requirement (union member, offset 12).</summary>
         [FieldOffset(12)]
-        public readonly NativeFieldCategory Category; // m_category
+        public readonly uint AlignmentRequirement;
 
-        /// <summary>
-        /// Gets the nested MethodTable of the field.
-        /// </summary>
-        public MethodTable* NestedType
-        {
-            get
-            {
-                return TypeAndCount.NestedType;
-            }
-        }
+        /// <summary>Native field offset (m_offset).</summary>
+        [FieldOffset(24)]
+        public readonly uint Offset;
 
-        /// <summary>
-        /// Gets the number of elements in the field.
-        /// </summary>
-        public uint NumElements
-        {
-            get
-            {
-                return TypeAndCount.NumElements;
-            }
-        }
+        /// <summary>Field category (m_category, short enum at offset 28).</summary>
+        [FieldOffset(28)]
+        public readonly NativeFieldCategory Category;
 
-        /// <summary>
-        /// Gets the native size of the field.
-        /// </summary>
-        public uint NativeSize
-        {
-            get
-            {
-                return SizeAndAlignment.NativeSize;
-            }
-        }
+        /// <summary>Whether the field is of float category.</summary>
+        public bool IsFloat => Category == NativeFieldCategory.FLOAT;
 
-        /// <summary>
-        /// Gets the alignment requirement of the field.
-        /// </summary>
-        public uint AlignmentRequirement
-        {
-            get
-            {
-                return SizeAndAlignment.AlignmentRequirement;
-            }
-        }
+        /// <summary>Whether the field is nested.</summary>
+        public bool IsNested => Category == NativeFieldCategory.NESTED;
 
-        /// <summary>
-        /// Gets a value indicating whether the field is of float category.
-        /// </summary>
-        public bool IsFloat
-        {
-            get
-            {
-                return Category == NativeFieldCategory.FLOAT;
-            }
-        }
+        /// <summary>Whether the field is of integer category.</summary>
+        public bool IsInteger => Category == NativeFieldCategory.INTEGER;
 
-        /// <summary>
-        /// Gets a value indicating whether the field is nested.
-        /// </summary>
-        public bool IsNested
-        {
-            get
-            {
-                return Category == NativeFieldCategory.NESTED;
-            }
-        }
-
-        /// <summary>
-        /// Gets a value indicating whether the field is of integer category.
-        /// </summary>
-        public bool IsInteger
-        {
-            get
-            {
-                return Category == NativeFieldCategory.INTEGER;
-            }
-        }
-
-        /// <summary>
-        /// Gets a value indicating whether the field is illegal.
-        /// </summary>
-        public bool IsIllegal
-        {
-            get
-            {
-                return Category == NativeFieldCategory.ILLEGAL;
-            }
-        }
+        /// <summary>Whether the field is illegal to marshal.</summary>
+        public bool IsIllegal => Category == NativeFieldCategory.ILLEGAL;
     }
 }
