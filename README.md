@@ -36,4 +36,4 @@ The primary goals of Cassowary are:
 
 ## License
 
-Cassowary is released under the [DO WHATEVER THE FUCK YOU WANT] License.
+Cassowary is released under the [Apache 2.0](LICENSE) License.
