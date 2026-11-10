@@ -3,41 +3,75 @@ using System.Runtime.InteropServices;
 
 namespace Cassowary.Runtime.VM.EE
 {
+    /// <summary>
+    ///     EEClassOptionalFields view. The first two pointer fields are unconditional.
+    ///     The COM-only sparse-vtable-map and coclass fields exist only under
+    ///     FEATURE_COMINTEROP (Windows). Module-dynamic-ID, System V eightbyte arrays and
+    ///     required-field-alignment offsets differ between the Windows-activation and
+    ///     UNIX_AMD64_ABI conditional layouts, so they are not exposed.
+    /// </summary>
     [UseAsPointer]
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit)]
     public readonly unsafe struct EEClassOptionalFields
     {
-        // GENERICS RELATED FIELDS
-
-        // If IsSharedByGenericInstantiations(), layout of handle dictionary for generic type
-        // (the last dictionary pointed to from PerInstInfo). Otherwise NULL.
+        /// <summary>Layout of the handle dictionary for shared generic types (m_pDictLayout).</summary>
         [FieldOffset(0)]
-        public readonly byte* DictionaryLayout; //m_pDictLayout
+        public readonly byte* DictionaryLayout;
 
-        // Variance info for each type parameter (gpNonVariant, gpCovariant, or gpContravariant)
-        // If NULL, this type has no type parameters that are co/contravariant
+        /// <summary>Variance info for each type parameter (m_pVarianceInfo).</summary>
         [FieldOffset(8)]
-        public readonly byte* VarianceInfo; //m_pVarianceInfo
+        public readonly byte* VarianceInfo;
 
-        [FieldOffset(16)]
-        public readonly SparseVTableMap* SparseVTableMap; //m_pSparseVTableMap
+        /// <summary>SparseVTableMap pointer. COM interop only (Windows), offset 16.</summary>
+        /// <exception cref="PlatformNotSupportedException">Non-Windows runtime.</exception>
+        public SparseVTableMap* SparseVTableMap
+        {
+            get
+            {
+                if (!RuntimeSupport.IsWindows)
+                    throw new PlatformNotSupportedException("m_pSparseVTableMap exists only under FEATURE_COMINTEROP (Windows).");
 
-        [FieldOffset(24)]
-        public readonly RuntimeTypeHandle CoClass; //m_pCoClassForIntf
+                fixed (EEClassOptionalFields* ptr = &this)
+                {
+                    return *(SparseVTableMap**)((byte*)ptr + 16);
+                }
+            }
+        }
 
-        // COM RELATED FIELDS
+        /// <summary>
+        ///     Coclass TypeHandle for an interface (raw native TypeHandle, not a managed
+        ///     RuntimeTypeHandle). COM interop only (Windows), offset 24.
+        /// </summary>
+        /// <exception cref="PlatformNotSupportedException">Non-Windows runtime.</exception>
+        public nint CoClass
+        {
+            get
+            {
+                if (!RuntimeSupport.IsWindows)
+                    throw new PlatformNotSupportedException("m_pCoClassForIntf exists only under FEATURE_COMINTEROP (Windows).");
 
-        // Note: You may need to define the SparseVTableMap and TypeHandle classes
-        // if they're not already defined in your project.
-        // public SparseVTableMap m_pSparseVTableMap;
-        // public TypeHandle m_pCoClassForIntf;
-        // public ClassFactoryBase m_pClassFactory;
+                fixed (EEClassOptionalFields* ptr = &this)
+                {
+                    return Unsafe.Read<nint>((byte*)ptr + 24);
+                }
+            }
+        }
 
-        [FieldOffset(12)]
-        public readonly uint ModuleDynamicID; //m_cbModuleDynamicID
+        /// <summary>
+        ///     Not exposed: its offset depends on the FEATURE_COMINTEROP_UNMANAGED_ACTIVATION
+        ///     and UNIX_AMD64_ABI conditional layout, which is not modeled.
+        /// </summary>
+        /// <exception cref="PlatformNotSupportedException">Always.</exception>
+        [Obsolete("m_cbModuleDynamicID offset depends on conditional native fields and is not supported.")]
+        public uint ModuleDynamicID => throw new PlatformNotSupportedException();
 
-        [FieldOffset(16)]
-        public readonly byte RequiredFieldAlignment; //m_requiredFieldAlignment
+        /// <summary>
+        ///     Not exposed: its offset follows the conditional System V eightbyte arrays
+        ///     on UNIX_AMD64_ABI and COM fields on Windows, not modeled.
+        /// </summary>
+        /// <exception cref="PlatformNotSupportedException">Always.</exception>
+        [Obsolete("m_requiredFieldAlignment offset depends on conditional native fields and is not supported.")]
+        public byte RequiredFieldAlignment => throw new PlatformNotSupportedException();
     }
 }

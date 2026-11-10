@@ -5,37 +5,56 @@ using System.Runtime.InteropServices;
 
 namespace Cassowary.Runtime.VM.EE
 {
+    /// <summary>
+    ///     DelegateEEClass view: pointer slots begin immediately after the platform
+    ///     dependent EEClass base (Windows 72 / Linux 56 bytes).
+    /// </summary>
     [UseAsPointer]
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit)]
     public readonly unsafe struct DelegateEEClass
     {
-        [FieldOffset(72)]
-        public readonly Stub* StaticCallStub; // m_pStaticCallStub
+        private void* Slot(int index)
+        {
+            fixed (DelegateEEClass* ptr = &this)
+            {
+                return *(void**)((byte*)ptr + EEClass.BaseSize + index * sizeof(void*));
+            }
+        }
 
-        [FieldOffset(80)]
-        public readonly Stub* InstRetBuffCallStub; // m_pInstRetBuffCallStub
+        public Stub* StaticCallStub => (Stub*)Slot(0); // m_pStaticCallStub
 
-        [FieldOffset(88)]
-        public readonly MethodDesc* InvokeMethod; // m_pInvokeMethod
+        public Stub* InstRetBuffCallStub => (Stub*)Slot(1); // m_pInstRetBuffCallStub
 
-        [FieldOffset(96)]
-        public readonly Stub* MultiCastInvokeStub; // m_pMultiCastInvokeStub
+        public MethodDesc* InvokeMethod => (MethodDesc*)Slot(2); // m_pInvokeMethod
 
-        [FieldOffset(104)]
-        public readonly Stub* WrapperDelegateInvokeStub; // m_pWrapperDelegateInvokeStub
+        public Stub* MultiCastInvokeStub => (Stub*)Slot(3); // m_pMultiCastInvokeStub
 
-        [FieldOffset(112)]
-        public readonly UMThunkMarshInfo* UMThunkMarshInfo; // m_pUMThunkMarshInfo
+        public Stub* WrapperDelegateInvokeStub => (Stub*)Slot(4); // m_pWrapperDelegateInvokeStub
 
-        [FieldOffset(120)]
-        public readonly MethodDesc* BeginInvokeMethod; // m_pBeginInvokeMethod
+        public UMThunkMarshInfo* UMThunkMarshInfo => (UMThunkMarshInfo*)Slot(5); // m_pUMThunkMarshInfo
 
-        [FieldOffset(128)]
-        public readonly MethodDesc* EndInvokeMethod; // m_pEndInvokeMethod
+        public MethodDesc* BeginInvokeMethod => (MethodDesc*)Slot(6); // m_pBeginInvokeMethod
+
+        public MethodDesc* EndInvokeMethod => (MethodDesc*)Slot(7); // m_pEndInvokeMethod
 
         [CanBeNull]
-        [FieldOffset(136)]
-        public readonly byte* MarshalStub; // m_pMarshalStub
+        public byte* MarshalStub => (byte*)Slot(8); // m_pMarshalStub
+
+        /// <summary>
+        ///     ComPlusCallInfo pointer. COM interop only, exists only on Windows.
+        /// </summary>
+        /// <exception cref="PlatformNotSupportedException">Non-Windows runtime.</exception>
+        [CanBeNull]
+        public void* ComPlusCallInfo
+        {
+            get
+            {
+                if (!RuntimeSupport.IsWindows)
+                    throw new PlatformNotSupportedException("m_pComPlusCallInfo exists only under FEATURE_COMINTEROP (Windows).");
+
+                return Slot(9);
+            }
+        }
     }
 }

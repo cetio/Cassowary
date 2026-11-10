@@ -1,5 +1,4 @@
-﻿using Cassowary.Runtime.Cor;
-using Cassowary.Signatures;
+﻿using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -7,212 +6,181 @@ namespace Cassowary.Runtime.VM
 {
     public unsafe partial struct MethodTable
     {
-        // The types nor methods should ever be null, unless they're removed.
-        private static Signature<nint, object> _allocateInternal = new(Type.GetType("System.StubHelpers.StubHelpers")!
-            .GetMethod("AllocateInternal", BindingFlags.NonPublic | BindingFlags.Static)!);
+        // Cached typed readers used by the boxing path. Reflection-created once per type,
+        // the delegates only read a typed value from a caller-owned pointer and box it.
+        private static readonly ConcurrentDictionary<Type, Func<nint, object?>> s_boxReaders = new();
 
-        private static Signature<nint, int, int, int> _allocateSZArrayInternal = new(typeof(GC)
-            .GetMethod("AllocateNewArray", BindingFlags.NonPublic | BindingFlags.Static)!);
+        private static readonly MethodInfo s_boxCore =
+            typeof(MethodTable).GetMethod(nameof(BoxCore), BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        private static object? BoxCore<T>(nint ptr)
+        {
+            // Reads the complete typed value and applies the C# boxing rules, including
+            // Nullable<T> semantics (empty -> null, populated -> boxed T).
+            return (object?)System.Runtime.CompilerServices.Unsafe.Read<T>((void*)ptr);
+        }
+
+        private static Func<nint, object?> GetBoxReader(Type type)
+        {
+            return s_boxReaders.GetOrAdd(type,
+                t => s_boxCore.MakeGenericMethod(t).CreateDelegate<Func<nint, object?>>());
+        }
+
+        private void EnsureBoxable()
+        {
+            if (!IsBoxableType(AsType()))
+            {
+                throw new ArgumentException(
+                    $"{AsType()} cannot be boxed from a raw pointer: only closed, non-byref-like " +
+                    "value types without GC references are supported.");
+            }
+        }
 
         /// <summary>
-        /// Allocates this MethodTable, checks if <see cref="MethodTable.CanAllocate"/> returns true.
+        ///     Allocates this MethodTable, checking managed allocatability rules.
         /// </summary>
         /// <returns>The allocated object.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <exception cref="ArgumentException">The type cannot be instantiated by supported managed APIs.</exception>
         public object Allocate()
         {
-            if (!CanAllocate())
-                throw new ArgumentException($"{this} does not support allocation."); ;
+            Type type = AsType();
 
-            // This is okay because we already checked if we can allocate.
+            if (!IsAllocatableType(type))
+                throw new ArgumentException($"{type} does not support allocation.");
+
             return AllocateNoChecks();
         }
 
         /// <summary>
-        /// Allocates this MethodTable, if it is a multi-dimensional Array.
+        ///     Allocates this MethodTable, if it is a multi-dimensional Array, preserving
+        ///     rank and zero lower bounds.
         /// </summary>
         /// <param name="lengths">The lengths of the Array to allocate.</param>
-        /// <returns>The allocated Array.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public object Allocate(params int[] lengths)
         {
-            if (!IsArray)
-                throw new ArgumentException($"{this} is not an array type, and cannot allocate using Allocate(params int[])");
+            Type type = AsType();
 
-            return Array.CreateInstance(ElementMethodTable->AsType(), lengths);
+            if (!type.IsArray)
+                throw new ArgumentException($"{type} is not an array type, and cannot allocate using Allocate(params int[])");
+
+            int rank = type.GetArrayRank();
+            if (lengths.Length != rank)
+                throw new ArgumentException($"Expected {rank} lengths for rank-{rank} array {type}, got {lengths.Length}.");
+
+            Array array = Array.CreateInstance(type.GetElementType()!, lengths);
+
+            // A rank-1 non-SZ array type (T[*]) cannot be produced by the SZArray overload,
+            // verify the requested shape survived.
+            if (array.GetType() != type)
+                throw new NotSupportedException($"Cannot preserve exact array type {type} with supported allocation APIs.");
+
+            return array;
         }
 
         /// <summary>
-        /// Allocates this MethodTable, if it is a single-dimensional Array.
+        ///     Allocates this MethodTable, if it is a single-dimensional Array.
         /// </summary>
         /// <param name="length">The length of the Array to allocate.</param>
-        /// <returns>The allocated Array.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public object Allocate(int length)
         {
-            if (!IsArray)
-                throw new ArgumentException($"{this} is not an array type, and cannot allocate using Allocate(params int[])");
-
-            return Array.CreateInstance(ElementMethodTable->AsType(), length);
+            return Allocate(new[] { length });
         }
 
         /// <summary>
-        /// Allocates and returns an object of the specified type, does not check if <see cref="MethodTable.CanAllocate"/> returns true.
+        ///     Allocates and returns an object of the specified type using supported managed
+        ///     APIs. Strings produce <see cref="string.Empty"/>, arrays produce a zero-length
+        ///     (every dimension zero) instance, everything else uses
+        ///     <see cref="RuntimeHelpers.GetUninitializedObject"/>.
         /// </summary>
         /// <returns>The allocated object.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public object AllocateNoChecks()
         {
-            if (IsString)
+            Type type = AsType();
+
+            if (type == typeof(string))
                 return string.Empty;
 
-            if (IsSZArray)
-                return Allocate(1);
+            if (type.IsArray)
+                return Allocate(new int[type.GetArrayRank()]);
 
-            if (IsArray)
-            {
-                int[] bounds = new int[GetClass()->AsArrayClass()->Rank];
+            if (!IsAllocatableType(type))
+                throw new ArgumentException($"{type} does not support allocation.");
 
-                for (int i = 0; i < GetClass()->AsArrayClass()->Rank; i++)
-                    bounds[i] = 1;
-
-                return Allocate(bounds);
-            }
-
-            fixed (MethodTable* ptr = &this)
-            {
-                return _allocateInternal.Invoke((nint)ptr);
-            }
+            return RuntimeHelpers.GetUninitializedObject(type);
         }
 
         /// <summary>
-        /// Boxes a value from a pointer of a specified type, checks if <see cref="CanBox"/> returns true.
+        ///     Boxes a value from a caller-owned pointer to a value of this type.
         /// </summary>
+        /// <remarks>
+        ///     Supported: closed, non-byref-like value types without GC references (including
+        ///     Nullable&lt;T&gt;). The caller owns and must keep the source pointer valid for
+        ///     the duration of the call, an arbitrary void* cannot be validated.
+        /// </remarks>
         /// <param name="ptr">A pointer to the value.</param>
-        /// <returns>The boxed object.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public object Box(void* ptr)
+        /// <returns>The boxed object (null for an empty Nullable&lt;T&gt;).</returns>
+        /// <exception cref="ArgumentNullException">ptr is null.</exception>
+        /// <exception cref="ArgumentException">The type is not a supported value type.</exception>
+        public object? Box(void* ptr)
         {
-            if (!CanBox())
-                throw new ArgumentException($"{this} does not support boxing.");
-
-            // This is okay because we already checked if the boxing is allowed.
+            EnsureBoxable();
             return BoxNoChecks(ptr);
         }
 
         /// <summary>
-        /// Strictly boxes a value from a pointer of a specified type, checks if <see cref="CanBoxStrict"/> returns true.
+        ///     Strictly boxes a value from a pointer, subject to the same restrictions as
+        ///     <see cref="Box"/>: no reference types, arrays, strings, byref-likes, or
+        ///     reference-containing structs.
         /// </summary>
         /// <param name="ptr">A pointer to the value.</param>
-        /// <returns>The boxed object.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public object BoxStrict(void* ptr)
+        /// <returns>The boxed object (null for an empty Nullable&lt;T&gt;).</returns>
+        public object? BoxStrict(void* ptr)
         {
-            if (!CanBoxStrict())
-                throw new ArgumentException($"{this} does not support strict boxing.");
-
-            // This is okay because we already checked if the boxing is allowed.
+            EnsureBoxable();
             return BoxNoChecks(ptr);
         }
 
         /// <summary>
-        /// Boxes a value from a pointer of a specified type, does not check if <see cref="CanBox"/> or <see cref="CanBoxStrict"/> returns true.
+        ///     Boxes a value from a caller-owned pointer. Despite the name, the same type
+        ///     restrictions as <see cref="Box"/> apply, there is no unchecked bypass.
         /// </summary>
-        /// <param name="ptr">A pointer to the value.</param>
-        /// <returns>The boxed object.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public object BoxNoChecks(void* ptr)
+        /// <param name="ptr">A pointer to the value, must remain valid for the call.</param>
+        /// <returns>The boxed object (null for an empty Nullable&lt;T&gt;).</returns>
+        /// <exception cref="ArgumentNullException">ptr is null.</exception>
+        /// <exception cref="ArgumentException">The type is not a supported value type.</exception>
+        public object? BoxNoChecks(void* ptr)
         {
-            // ok, maybe some checks
-            if (IsString)
-                return new string((char*)Unsafe.Add(ptr, CorDataOffsets.OFFSET_STRING), 0, *(int*)ptr);
+            ArgumentNullException.ThrowIfNull(ptr);
+            EnsureBoxable();
+            return GetBoxReader(AsType())((nint)ptr);
+        }
 
-            if (IsSZArray)
-            {
-                Array array = (Array)Allocate(*(int*)ptr);
-                Unsafe.CopyBlock(Intrinsics.GetPointer(array), ptr, (uint)ComponentSize + CorDataOffsets.OFFSET_ARRAY);
-                return array;
-            }
+        /// <summary>
+        ///     Casts the given object to this MethodTable, preserving object identity using
+        ///     the runtime's own cast rules.
+        /// </summary>
+        /// <param name="obj">The object to cast.</param>
+        /// <returns>Obj itself, if castable.</returns>
+        /// <exception cref="InvalidCastException">The object is not assignable to this type.</exception>
+        public object? Cast(object? obj)
+        {
+            if (obj == null)
+                return null;
 
-            if (IsArray)
-            {
-                int[] bounds = new int[GetClass()->AsArrayClass()->Rank];
-                int bytes = 8;
+            Type type = AsType();
+            if (!type.IsInstanceOfType(obj))
+                throw new InvalidCastException($"Object of type {obj.GetType()} cannot be cast to {type}.");
 
-                for (int i = 0; i < GetClass()->AsArrayClass()->Rank; i++)
-                {
-                    bounds[i] = *(int*)ptr;
-                    bytes += *(int*)ptr * ComponentSize;
-                }
-
-                Array array = (Array)Allocate(bounds);
-                Unsafe.CopyBlock(Intrinsics.GetPointer(array), ptr, (uint)bytes);
-                return array;
-            }
-
-            object obj = AllocateNoChecks();
-            Unsafe.Copy(ref Intrinsics.GetData(obj), ptr);
             return obj;
         }
 
         /// <summary>
-        /// Casts the given object to this MethodTable, checks if <see cref="MethodTable.CanCastTo"/> returns true.
+        ///     Casts the given object to this MethodTable. Identical to <see cref="Cast"/>,
+        ///     there is no unchecked object-copying path.
         /// </summary>
-        /// <param name="obj">The object to cast to the provided MethodTable.</param>
-        /// <returns>Obj as pMT.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public object Cast(object obj)
+        public object? CastNoChecks(object? obj)
         {
-            fixed (MethodTable* pMT = &this)
-            {
-                MethodTable* poMT = FromObject(obj);
-
-                if (poMT == pMT)
-                    return obj;
-
-                if (!poMT->CanCastTo(pMT))
-                    throw new ArgumentException($"{*poMT} cannot cast to {*pMT}");
-
-                // This is okay because we already checked if the cast can happen.
-                return CastNoChecks(obj);
-            }
-        }
-
-        /// <summary>
-        /// Casts the given object to this MethodTable, does not check if <see cref="MethodTable.CanCastTo"/> returns true.
-        /// </summary>
-        /// <param name="obj">The object to cast to the provided MethodTable.</param>
-        /// <returns>Obj as pMT.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public object CastNoChecks(object obj)
-        {
-            fixed (MethodTable* pMT = &this)
-            {
-                // Copy should never return as null, so this is fine.
-                object copy = null!;
-
-                if (pMT->IsString)
-                {
-                    return obj.ToString() ?? string.Empty;
-                }
-                else if (pMT->IsArray)
-                {
-                    MethodTable* poMT = FromObject(obj);
-
-                    if (poMT->IsArray)
-                        return pMT->BoxNoChecks(Intrinsics.GetPointer(obj));
-
-                    copy = pMT->Allocate(1);
-                    Unsafe.CopyBlock(Unsafe.Add(Intrinsics.GetPointer(copy), 8), Unsafe.Add(Intrinsics.GetPointer(obj), 8), (uint)ComponentSize);
-                    return copy;
-                }
-                else
-                {
-                    copy = pMT->AllocateNoChecks();
-                    Unsafe.CopyBlock(ref Intrinsics.GetData(copy), ref Intrinsics.GetData(obj), (uint)pMT->GetNumInstanceFieldBytes());
-                    return copy;
-                }
-            }
+            return Cast(obj);
         }
     }
 }

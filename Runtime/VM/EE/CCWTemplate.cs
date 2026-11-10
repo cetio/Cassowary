@@ -3,63 +3,63 @@ using System.Runtime.InteropServices;
 
 namespace Cassowary.Runtime.VM.EE
 {
+    /// <summary>
+    ///     ComCallWrapperTemplate view (comcallablewrapper.h). COM interop only, this
+    ///     structure only exists under FEATURE_COMINTEROP (Windows x64).
+    /// </summary>
     [UseAsPointer]
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit)]
     public readonly unsafe struct CCWTemplate
     {
-        /// <summary>
-        /// Pointer to the VTable of the COM interface.
-        /// </summary>
+        /// <summary>Reference count (m_cbRefCount, LONG at 0).</summary>
         [FieldOffset(0)]
-        public readonly byte* VTable; //m_pVtable
+        public readonly int RefCount;
 
-        /// <summary>
-        /// Pointer to the MethodTable of the wrapped object.
-        /// </summary>
+        /// <summary>Parent template (m_pParent).</summary>
         [FieldOffset(8)]
-        public readonly MethodTable* WrappedMethodTable; //m_pWrappedMethodTable
+        public readonly CCWTemplate* Parent;
 
-        /// <summary>
-        /// Pointer to the MethodDesc of the wrapped object's method.
-        /// </summary>
+        /// <summary>Class TypeHandle, raw native handle (m_thClass).</summary>
         [FieldOffset(16)]
-        public readonly MethodDesc* WrappedMethodDesc; //m_pMDesc
+        public readonly nint ClassTypeHandle;
 
-        /// <summary>
-        /// Pointer to the MLHeader structure.
-        /// </summary>
+        /// <summary>Default interface MethodTable (m_pDefaultItf).</summary>
         [FieldOffset(24)]
-        public readonly byte* MLHeader; //m_pMLHeader
+        public readonly MethodTable* DefaultInterface;
 
-        /// <summary>
-        /// Pointer to the MLCode structure.
-        /// </summary>
+        /// <summary>Class COM method table (m_pClassComMT).</summary>
         [FieldOffset(32)]
-        public readonly byte* MLCode; //m_pMLCode
+        public readonly void* ClassComMethodTable;
 
-        /// <summary>
-        /// Pointer to the MethodDescChunk of the wrapped object's method.
-        /// </summary>
+        /// <summary>Basic COM method table (m_pBasicComMT).</summary>
         [FieldOffset(40)]
-        public readonly MethodDescChunk* MethodDescChunk; //m_pMDescChunk
+        public readonly void* BasicComMethodTable;
 
-        /// <summary>
-        /// Pointer to the ILCode structure.
-        /// </summary>
+        /// <summary>Flags (m_flags, DWORD at 48).</summary>
         [FieldOffset(48)]
-        public readonly byte* ILCode; //m_pILCode
+        public readonly uint Flags;
 
-        /// <summary>
-        /// Pointer to extra information (if needed). This functions similarly to MultiPurposeSlot.
-        /// </summary>
+        /// <summary>ICustomQueryInterface::GetInterface MethodDesc (m_pICustomQueryInterfaceGetInterfaceMD).</summary>
         [FieldOffset(56)]
-        public readonly byte* ExtraInfo; //m_pExtraInfo 
+        public readonly MethodDesc* ICustomQueryInterfaceGetInterfaceMD;
+
+        /// <summary>Interface count (m_cbInterfaces, ULONG at 64).</summary>
+        [FieldOffset(64)]
+        public readonly uint InterfaceCount;
 
         /// <summary>
-        /// Pointer to the MethodTable of the COM interface.
+        ///     First entry of the inline interface pointer array (m_rgpIPtr[1] at offset 72).
         /// </summary>
-        [FieldOffset(64)]
-        public readonly MethodTable* InterfaceMethodTable; // m_pInterfaceMT
+        public void* FirstInterfacePtr
+        {
+            get
+            {
+                fixed (CCWTemplate* ptr = &this)
+                {
+                    return *(void**)((byte*)ptr + 72);
+                }
+            }
+        }
     }
 }

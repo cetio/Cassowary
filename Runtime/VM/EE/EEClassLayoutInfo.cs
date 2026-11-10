@@ -28,11 +28,11 @@ namespace Cassowary.Runtime.VM.EE
     /// </summary>
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit, Size = 8)]
-    public unsafe struct EEClassLayoutInfo
+    public readonly unsafe struct EEClassLayoutInfo
     {
         /// <summary>Managed size in bytes (m_cbManagedSize).</summary>
         [FieldOffset(0)]
-        public int ManagedSize;
+        public readonly int ManagedSize;
 
         /// <summary>
         ///     Largest managed alignment requirement of all members

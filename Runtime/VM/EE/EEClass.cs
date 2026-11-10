@@ -1,78 +1,47 @@
 using Cassowary.Attributes;
 using Cassowary.Runtime.Cor;
 using JetBrains.Annotations;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Runtime.Intrinsics;
-using System.Runtime.Remoting;
 
 namespace Cassowary.Runtime.VM.EE
 {
+    /// <summary>
+    ///     .NET 8 CoreCLR EEClass VM flags (class.h VMFLAG_*).
+    /// </summary>
     [Flags]
     public enum VMFlags : uint
     {
         LayoutDependsOnOtherModules = 0x00000001,
         Delegate = 0x00000002,
-
-        /// <summary>
-        ///     Value type Statics in this class will be pinned
-        /// </summary>
+        EncStaticFields = 0x00000004,
         FixedAddressVtStatics = 0x00000020,
         HasLayout = 0x00000040,
         IsNested = 0x00000080,
         IsEquivalentType = 0x00000200,
-
-        //   OVERLAYED is used to detect whether Equals can safely optimize to a bit-compare across the structure.
         HasOverlayedFields = 0x00000400,
-
-        // Set this if this class or its parent have instance fields which
-        // must be explicitly inited in a constructor (e.g. pointers of any
-        // kind, gc or native).
-        //
-        // Currently this is used by the verifier when verifying value classes
-        // - it's ok to use uninitialized value classes if there are no
-        // pointer fields in them.
         HasFieldsWhichMustBeInited = 0x00000800,
-
         UnsafeValueType = 0x00001000,
-
-        /// <summary>
-        ///     <see cref="BestFitMapping" /> and <see cref="ThrowOnUnmappableChar" /> are valid only if this is set
-        /// </summary>
         BestFitMappingInited = 0x00002000,
-        BestFitMapping = 0x00004000, // BestFitMappingAttribute.Value
-        ThrowOnUnmappableChar = 0x00008000, // BestFitMappingAttribute.ThrowOnUnmappableChar
-
-        // unused                              = 0x00010000,
+        BestFitMapping = 0x00004000,
+        ThrowOnUnmappableChar = 0x00008000,
+        InlineArray = 0x00010000,
         NoGuid = 0x00020000,
         HasNonPublicFields = 0x00040000,
-
-        // unused                              = 0x00080000,
+        HasCustomFieldAlignment = 0x00080000,
         ContainsStackPtr = 0x00100000,
-
-        /// <summary>
-        ///     Would like to have 8-byte alignment
-        /// </summary>
         PreferAlign8 = 0x00200000,
-        // unused                              = 0x00400000,
-
+        OnlyAbstractMethods = 0x00400000,
         SparseForCominterop = 0x00800000,
-
-        // interfaces may have a coclass attribute
         HasCoClassAttrib = 0x01000000,
-        ComEventItfMask = 0x02000000, // class is a special COM event interface
-        ProjectedFromWinRT = 0x04000000,
-        ExportedToWinRT = 0x08000000,
-
-        // This one indicates that the fields of the valuetype are
-        // not tightly packed and is used to check whether we can
-        // do bit-equality on value types to implement ValueType::Equals.
-        // It is not valid for classes, and only matters if ContainsPointer
-        // is false.
+        ComEventItfMask = 0x02000000,
+        /// <summary>Class uses MethodImpl to override a virtual function defined on a class.</summary>
+        VTableMethodImpl = 0x04000000,
+        /// <summary>Class has a covariant override.</summary>
+        CovariantOverride = 0x08000000,
         NotTightlyPacked = 0x10000000,
-
-        // True if methoddesc on this class have any real (non-interface) methodimpls
         ContainsMethodImpls = 0x20000000,
         MarshalingTypeMask = 0xc0000000,
         MarshalingTypeInhibit = 0x40000000,
@@ -80,20 +49,49 @@ namespace Cassowary.Runtime.VM.EE
         MarshalingTypeStandard = 0xc0000000
     }
 
+    /// <summary>
+    ///     Read-only view of a native CoreCLR EEClass. The first five pointer fields are at
+    ///     fixed offsets on every supported configuration, the trailing attribute/flag/byte
+    ///     fields are platform-dependent because FEATURE_COMINTEROP fields exist only on
+    ///     Windows.
+    /// </summary>
+    /// <remarks>
+    ///     Windows x64: COM fields at 40/48, attributes at 56, flags at 60, byte fields at
+    ///     64-67 (base size 72). Linux x64: no COM fields, attributes at 40, flags at 44,
+    ///     byte fields at 48-51 (base size 56). Derived classes (ArrayClass,
+    ///     DelegateEEClass, LayoutEEClass) begin immediately after the base.
+    /// </remarks>
     [UseAsPointer]
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit)]
     public readonly unsafe struct EEClass
     {
+        /// <summary>Size of the base EEClass fields on the current platform.</summary>
+        internal static int BaseSize
+        {
+            get
+            {
+                RuntimeSupport.EnsureSupported();
+                return RuntimeSupport.IsWindows ? 72 : 56;
+            }
+        }
+
+        private static int AttrsOffset => RuntimeSupport.IsWindows ? 56 : 40;
+        private static int VMFlagsOffset => RuntimeSupport.IsWindows ? 60 : 44;
+        private static int NormTypeOffset => RuntimeSupport.IsWindows ? 64 : 48;
+        private static int PackedOffset => RuntimeSupport.IsWindows ? 65 : 49;
+        private static int FixedFieldsOffset => RuntimeSupport.IsWindows ? 66 : 50;
+        private static int PaddingOffset => RuntimeSupport.IsWindows ? 67 : 51;
+
         /// <summary>
-        /// Contains the GuidInfo if the EEClass is associated with an Interface.
+        ///     Contains the GuidInfo if the EEClass is associated with an Interface.
         /// </summary>
         [CanBeNull]
         [FieldOffset(0)]
         public readonly GuidInfo* GuidInfo; // m_pGuidInfo
 
         /// <summary>
-        /// Contains Optional Fields if specified by the associated type.
+        ///     Contains Optional Fields if specified by the associated type.
         /// </summary>
         [CanBeNull]
         [FieldOffset(8)]
@@ -108,81 +106,126 @@ namespace Cassowary.Runtime.VM.EE
         [FieldOffset(32)]
         public readonly MethodDescChunk* MethodDescChunk; // m_pChunks
 
-        [FieldOffset(40)]
-#pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
-        public readonly ObjectHandle* DelegateObjectHandle; // m_ohDelegate
-#pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
+        private byte* Addr(int offset)
+        {
+            RuntimeSupport.EnsureSupported();
 
-        [FieldOffset(40)]
-        public readonly CorInterfaceType CorInterfaceType; // m_ComInterfaceType
+            fixed (EEClass* ptr = &this)
+            {
+                return (byte*)ptr + offset;
+            }
+        }
 
         /// <summary>
-        /// Contains the CCWTemplate if the EEClass is associated with a COM Visible type.
+        ///     Handle to a delegate used to allocate an aggregated unmanaged class.
+        ///     COM interop only, exists only on Windows.
         /// </summary>
-        [CanBeNull]
-        [FieldOffset(48)]
-        public readonly CCWTemplate* CCWTemplate; // m_pccwTemplate
+        /// <exception cref="PlatformNotSupportedException">Non-Windows runtime.</exception>
+        public void* DelegateObjectHandle
+        {
+            get
+            {
+                if (!RuntimeSupport.IsWindows)
+                    throw new PlatformNotSupportedException("m_ohDelegate/m_ComInterfaceType exist only under FEATURE_COMINTEROP (Windows).");
 
-        [FieldOffset(56)]
-        public readonly TypeAttributes TypeAttributes; // m_dwAttrClass
-
-        [FieldOffset(60)]
-        public readonly VMFlags VMFlags; // m_VMFlags
-
-        [FieldOffset(64)]
-        public readonly CorElementType CorElementType; // m_NormType
-
-        [FieldOffset(65)]
-        public readonly bool FieldsArePacked; // m_fFieldsArePacked
-
-        [FieldOffset(66)]
-        public readonly byte FixedEEClassFieldsSize; // m_cbFixedEEClassFields
-
-        [FieldOffset(67)]
-        public readonly byte BaseSizePadding; // m_cbBaseSizePadding
+                return *(void**)Addr(40);
+            }
+        }
 
         /// <summary>
-        /// Gets the rank of the array.
+        ///     COM interface type for interfaces. COM interop only, exists only on Windows.
+        /// </summary>
+        /// <exception cref="PlatformNotSupportedException">Non-Windows runtime.</exception>
+        public CorInterfaceType CorInterfaceType
+        {
+            get
+            {
+                if (!RuntimeSupport.IsWindows)
+                    throw new PlatformNotSupportedException("m_ohDelegate/m_ComInterfaceType exist only under FEATURE_COMINTEROP (Windows).");
+
+                return Unsafe.Read<CorInterfaceType>(Addr(40));
+            }
+        }
+
+        /// <summary>
+        ///     Contains the ComCallWrapperTemplate if the EEClass is associated with a COM
+        ///     visible type. COM interop only, exists only on Windows.
+        /// </summary>
+        /// <exception cref="PlatformNotSupportedException">Non-Windows runtime.</exception>
+        public CCWTemplate* CCWTemplate
+        {
+            get
+            {
+                if (!RuntimeSupport.IsWindows)
+                    throw new PlatformNotSupportedException("m_pccwTemplate exists only under FEATURE_COMINTEROP (Windows).");
+
+                return *(CCWTemplate**)Addr(48);
+            }
+        }
+
+        /// <summary>TypeAttributes (m_dwAttrClass).</summary>
+        public TypeAttributes TypeAttributes => Unsafe.Read<TypeAttributes>(Addr(AttrsOffset));
+
+        /// <summary>VM flags (m_VMFlags).</summary>
+        public VMFlags VMFlags => Unsafe.Read<VMFlags>(Addr(VMFlagsOffset));
+
+        /// <summary>Normalized element type (m_NormType).</summary>
+        public CorElementType CorElementType => Unsafe.Read<CorElementType>(Addr(NormTypeOffset));
+
+        /// <summary>TRUE iff the fields are in packed state (m_fFieldsArePacked).</summary>
+        public bool FieldsArePacked => Unsafe.Read<byte>(Addr(PackedOffset)) != 0;
+
+        /// <summary>Count of bytes of normal fields of this instance (m_cbFixedEEClassFields).</summary>
+        public byte FixedEEClassFieldsSize => Unsafe.Read<byte>(Addr(FixedFieldsOffset));
+
+        /// <summary>Bytes of padding included in the MethodTable BaseSize (m_cbBaseSizePadding).</summary>
+        public byte BaseSizePadding => Unsafe.Read<byte>(Addr(PaddingOffset));
+
+        /// <summary>
+        ///     Gets the rank of the array.
         /// </summary>
         /// <remarks>
-        /// If the type is not an array, the rank will be 0.
+        ///     If the type is not an array, the rank will be 0.
         /// </remarks>
         public int Rank
         {
             get
             {
-                if (HasArrayClass)
-                    return AsArrayClass()->Rank;
-
-                if (MethodTable->HasArrayDesc)
-                    return MethodTable->ArrayDesc.Rank;
-
-                return 0;
+                return HasArrayClass ? AsArrayClass()->Rank : 0;
             }
         }
 
         /// <summary>
-        /// Gets the managed size of the array.
+        ///     Managed (GC) instance size.
         /// </summary>
         /// <remarks>
-        /// The managed size is the size of the array in memory, including the space for the element type and any padding.
+        ///     For types with layout information this is the layout managed size, otherwise
+        ///     it is the MethodTable instance-field byte count. Array and string sizes are
+        ///     instance-dependent and cannot be answered from the EEClass.
         /// </remarks>
+        /// <exception cref="InvalidOperationException">
+        ///     The type is an array or string, use an actual instance for its size.
+        /// </exception>
         public int ManagedSize
         {
             get
             {
-                if (MethodTable->HasArrayDesc)
-                    return LayoutEEClass->LayoutInfo.ManagedSize + MethodTable->ComponentSize * MethodTable->ArrayDesc.Length;
+                Type type = MethodTable->AsType();
 
-                if (HasArrayClass)
-                    return MethodTable->ComponentSize * Rank;
+                if (type.IsArray || type == typeof(string))
+                    throw new InvalidOperationException(
+                        "Managed size of arrays and strings is instance-dependent. Query an instance instead.");
 
-                return LayoutEEClass->LayoutInfo.ManagedSize;
+                if (HasLayout)
+                    return LayoutEEClass->LayoutInfo.ManagedSize;
+
+                return MethodTable->GetNumInstanceFieldBytes();
             }
         }
 
         /// <summary>
-        /// Gets the layout information for the EEClass.
+        ///     Gets the EEClass viewed as a LayoutEEClass (valid only when
+        ///     <see cref="HasLayout"/> is set).
         /// </summary>
         public LayoutEEClass* LayoutEEClass
         {
@@ -196,40 +239,29 @@ namespace Cassowary.Runtime.VM.EE
         }
 
         /// <summary>
-        /// EEClasses only contain a GuidInfo if it is associated with an Interface.
+        ///     Whether this interface type carries a cached GuidInfo.
         /// </summary>
         public bool HasGuidInfo
         {
             get
             {
-                return !NoGuid && MethodTable->IsInterfaceWithGuidInfo;
+                return GuidInfo != null && !NoGuid && MethodTable->IsInterface;
             }
         }
 
         /// <summary>
-        /// EEClasses only contain Optional Fields if specified so by the associated type.
+        ///     EEClasses only contain Optional Fields if specified so by the associated type.
         /// </summary>
         public bool HasOptionalFields
         {
             get
             {
-                try
-                {
-                    if ((nint)OptionalFields == 0)
-                        return false;
-
-                    // This is just intended to cause a object reference error (if the pointer doesn't point to EEClassOptionalFields)
-                    return (object?)*OptionalFields != null;
-                }
-                catch
-                {
-                    return false;
-                }
+                return OptionalFields != null;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has an ArrayClass.
+        ///     Gets a value determining whether or not the associated type has an ArrayClass.
         /// </summary>
         public bool HasArrayClass
         {
@@ -240,7 +272,7 @@ namespace Cassowary.Runtime.VM.EE
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has a DelegateEEClass.
+        ///     Gets a value determining whether or not the associated type has a DelegateEEClass.
         /// </summary>
         public bool HasDelegateEEClass
         {
@@ -251,7 +283,7 @@ namespace Cassowary.Runtime.VM.EE
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a primitive type.
+        ///     Gets a value determining whether or not the associated type is a primitive type.
         /// </summary>
         public bool IsPrimitive
         {
@@ -261,609 +293,255 @@ namespace Cassowary.Runtime.VM.EE
             }
         }
 
+        private int Visibility => (int)(TypeAttributes & TypeAttributes.VisibilityMask);
+        private int Layout => (int)(TypeAttributes & TypeAttributes.LayoutMask);
+        private int StringFormat => (int)(TypeAttributes & TypeAttributes.StringFormatMask);
+        private int ClassSemantics => (int)(TypeAttributes & TypeAttributes.ClassSemanticsMask);
+
+        /// <summary>Uses CharSet.Ansi.</summary>
+        public bool IsAnsiClass => StringFormat == (int)TypeAttributes.AnsiClass;
+
+        /// <summary>Uses auto layout.</summary>
+        public bool HasAutoLayout => Layout == (int)TypeAttributes.AutoLayout;
+
+        /// <summary>Is an interface.</summary>
+        public bool IsInterface => ClassSemantics == (int)TypeAttributes.Interface;
+
+        /// <summary>Is a class.</summary>
+        public bool IsClass => ClassSemantics == (int)TypeAttributes.Class;
+
+        /// <summary>Is not public.</summary>
+        public bool IsNotPublic => Visibility == (int)TypeAttributes.NotPublic;
+
+        /// <summary>Is public.</summary>
+        public bool IsPublic => Visibility == (int)TypeAttributes.Public;
+
+        /// <summary>Is nested public.</summary>
+        public bool IsNestedPublic => Visibility == (int)TypeAttributes.NestedPublic;
+
+        /// <summary>Is nested private.</summary>
+        public bool IsNestedPrivate => Visibility == (int)TypeAttributes.NestedPrivate;
+
+        /// <summary>Is nested family.</summary>
+        public bool IsNestedFamily => Visibility == (int)TypeAttributes.NestedFamily;
+
+        /// <summary>Is nested assembly.</summary>
+        public bool IsNestedAssembly => Visibility == (int)TypeAttributes.NestedAssembly;
+
+        /// <summary>Is nested family and assembly.</summary>
+        public bool IsNestedFamANDAssem => Visibility == (int)TypeAttributes.NestedFamANDAssem;
+
+        /// <summary>Is nested family or assembly.</summary>
+        public bool IsNestedFamORAssem => Visibility == (int)TypeAttributes.NestedFamORAssem;
+
+        /// <summary>Has sequential layout.</summary>
+        public bool HasSequentialLayout => Layout == (int)TypeAttributes.SequentialLayout;
+
+        /// <summary>Has explicit layout.</summary>
+        public bool HasExplicitLayout => Layout == (int)TypeAttributes.ExplicitLayout;
+
+        /// <summary>Is abstract.</summary>
+        public bool IsAbstract => (TypeAttributes & TypeAttributes.Abstract) != 0;
+
+        /// <summary>Is sealed.</summary>
+        public bool IsSealed => (TypeAttributes & TypeAttributes.Sealed) != 0;
+
+        /// <summary>Is a special name.</summary>
+        public bool IsSpecialName => (TypeAttributes & TypeAttributes.SpecialName) != 0;
+
+        /// <summary>Is a runtime special name.</summary>
+        public bool IsRTSpecialName => (TypeAttributes & TypeAttributes.RTSpecialName) != 0;
+
+        /// <summary>Is an import.</summary>
+        public bool IsImport => (TypeAttributes & TypeAttributes.Import) != 0;
+
+        /// <summary>Is serializable.</summary>
+        public bool IsSerializable => (TypeAttributes & TypeAttributes.Serializable) != 0;
+
+        /// <summary>Is a Windows runtime type.</summary>
+        public bool IsWindowsRuntime => (TypeAttributes & TypeAttributes.WindowsRuntime) != 0;
+
+        /// <summary>Uses CharSet.Unicode.</summary>
+        public bool IsUnicodeClass => StringFormat == (int)TypeAttributes.UnicodeClass;
+
+        /// <summary>Uses CharSet.Auto.</summary>
+        public bool IsAutoClass => StringFormat == (int)TypeAttributes.AutoClass;
+
+        /// <summary>Uses a custom string format.</summary>
+        public bool HasCustomFormat => StringFormat == (int)TypeAttributes.CustomFormatClass;
+
+        /// <summary>Has security.</summary>
+        public bool HasSecurity => (TypeAttributes & TypeAttributes.HasSecurity) != 0;
+
+        /// <summary>Layout depends on other modules.</summary>
+        public bool LayoutDependsOnOtherModules => (VMFlags & VMFlags.LayoutDependsOnOtherModules) != 0;
+
+        /// <summary>Is a delegate.</summary>
+        public bool IsDelegate => (VMFlags & VMFlags.Delegate) != 0;
+
+        /// <summary>Value type statics will be pinned.</summary>
+        public bool FixedAddressVtStatics => (VMFlags & VMFlags.FixedAddressVtStatics) != 0;
+
+        /// <summary>Has layout information (is a LayoutEEClass).</summary>
+        public bool HasLayout => (VMFlags & VMFlags.HasLayout) != 0;
+
+        /// <summary>Is nested.</summary>
+        public bool IsNested => (VMFlags & VMFlags.IsNested) != 0;
+
+        /// <summary>Is an equivalent type.</summary>
+        public bool IsEquivalentType => (VMFlags & VMFlags.IsEquivalentType) != 0;
+
+        /// <summary>Has overlayed fields.</summary>
+        public bool HasOverlayedFields => (VMFlags & VMFlags.HasOverlayedFields) != 0;
+
+        /// <summary>Has fields which must be explicitly initialized.</summary>
+        public bool HasFieldsWhichMustBeInited => (VMFlags & VMFlags.HasFieldsWhichMustBeInited) != 0;
+
+        /// <summary>Is an unsafe value type.</summary>
+        public bool UnsafeValueType => (VMFlags & VMFlags.UnsafeValueType) != 0;
+
+        /// <summary>BestFitMapping/ThrowOnUnmappableChar values are initialized.</summary>
+        public bool BestFitMappingInited => (VMFlags & VMFlags.BestFitMappingInited) != 0;
+
+        /// <summary>BestFitMapping is enabled.</summary>
+        public bool BestFitMapping => (VMFlags & VMFlags.BestFitMapping) != 0;
+
+        /// <summary>ThrowOnUnmappableChar is enabled.</summary>
+        public bool ThrowOnUnmappableChar => (VMFlags & VMFlags.ThrowOnUnmappableChar) != 0;
+
+        /// <summary>Type is an inline array.</summary>
+        public bool IsInlineArray => (VMFlags & VMFlags.InlineArray) != 0;
+
+        /// <summary>Type has no Guid.</summary>
+        public bool NoGuid => (VMFlags & VMFlags.NoGuid) != 0;
+
+        /// <summary>Type has non-public fields.</summary>
+        public bool HasNonPublicField => (VMFlags & VMFlags.HasNonPublicFields) != 0;
+
+        /// <summary>Type has custom field alignment.</summary>
+        public bool HasCustomFieldAlignment => (VMFlags & VMFlags.HasCustomFieldAlignment) != 0;
+
+        /// <summary>Type contains a stack pointer.</summary>
+        public bool ContainsStackPtr => (VMFlags & VMFlags.ContainsStackPtr) != 0;
+
+        /// <summary>Type prefers 8-byte alignment.</summary>
+        public bool PreferAlign8 => (VMFlags & VMFlags.PreferAlign8) != 0;
+
+        /// <summary>Type only contains abstract methods.</summary>
+        public bool OnlyAbstractMethods => (VMFlags & VMFlags.OnlyAbstractMethods) != 0;
+
+        /// <summary>Type is sparse for COM interop.</summary>
+        public bool SparseForCominterop => (VMFlags & VMFlags.SparseForCominterop) != 0;
+
+        /// <summary>Type has a CoClass attribute (COM only metadata flag, bit still exists).</summary>
+        public bool HasCoClassAttrib => (VMFlags & VMFlags.HasCoClassAttrib) != 0;
+
+        /// <summary>Type is a special COM event interface.</summary>
+        public bool IsComEventItf => (VMFlags & VMFlags.ComEventItfMask) != 0;
+
+        /// <summary>Class uses MethodImpl to override a class virtual function.</summary>
+        public bool HasVTableMethodImpl => (VMFlags & VMFlags.VTableMethodImpl) != 0;
+
+        /// <summary>Class has a covariant override.</summary>
+        public bool HasCovariantOverride => (VMFlags & VMFlags.CovariantOverride) != 0;
+
+        /// <summary>Always throws: the WinRT projection flag was removed from .NET 8 VM flags.</summary>
+        [Obsolete("The ProjectedFromWinRT bit is now VMFLAG_VTABLEMETHODIMPL in .NET 8.")]
+        public bool IsProjectedFromWinRT => throw new PlatformNotSupportedException();
+
+        /// <summary>Always throws: the WinRT export flag was removed from .NET 8 VM flags.</summary>
+        [Obsolete("The ExportedToWinRT bit is now VMFLAG_COVARIANTOVERRIDE in .NET 8.")]
+        public bool IsExportedToWinRT => throw new PlatformNotSupportedException();
+
+        /// <summary>Value type is not tightly packed.</summary>
+        public bool NotTightlyPacked => (VMFlags & VMFlags.NotTightlyPacked) != 0;
+
+        /// <summary>Type contains method implementations.</summary>
+        public bool ContainsMethodImpls => (VMFlags & VMFlags.ContainsMethodImpls) != 0;
+
+        /// <summary>Marshaling type is Inhibit.</summary>
+        public bool IsMarshalingTypeInhibit => (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeInhibit;
+
+        /// <summary>Marshaling type is FreeThreaded.</summary>
+        public bool IsMarshalingTypeFreeThreaded => (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeFreeThreaded;
+
+        /// <summary>Marshaling type is Standard.</summary>
+        public bool IsMarshalingTypeStandard => (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeStandard;
+
+        private static readonly BindingFlags s_declaredFieldFlags =
+            BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic |
+            BindingFlags.Instance | BindingFlags.Static;
+
         /// <summary>
-        /// Gets a value determining whether or not the associated type uses CharSet.Ansi.
+        ///     FieldInfos for fields declared by the associated type (all visibilities,
+        ///     instance and static, excluding literal/const fields which have no FieldDesc).
         /// </summary>
-        public bool IsAnsiClass
+        /// <remarks>
+        ///     When the EEClass belongs to a canonical shared generic instantiation, the
+        ///     returned context is the canonical type, not a specific closed instantiation.
+        /// </remarks>
+        public FieldInfo[] GetFieldInfos()
         {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.AnsiClass);
-            }
+            Type type = MethodTable->AsType();
+            FieldInfo[] fields = type.GetFields(s_declaredFieldFlags);
+
+            int count = 0;
+            foreach (FieldInfo f in fields)
+                if (!f.IsLiteral)
+                    count++;
+
+            FieldInfo[] result = new FieldInfo[count];
+            int i = 0;
+            foreach (FieldInfo f in fields)
+                if (!f.IsLiteral)
+                    result[i++] = f;
+
+            return result;
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has auto layout.
+        ///     Number of fields declared by the associated type.
         /// </summary>
-        public bool HasAutoLayout
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.AutoLayout);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is an interface.
-        /// </summary>
-        public bool IsInterface
-        {
-            get
-            {
-                return MethodTable->IsInterface;
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a class.
-        /// </summary>
-        public bool IsClass
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.Class);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is not a public type.
-        /// </summary>
-        public bool IsNotPublic
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.NotPublic);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a public type.
-        /// </summary>
-        public bool IsPublic
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.Public);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a nested public type.
-        /// </summary>
-        public bool IsNestedPublic
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.NestedPublic);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a nested private type.
-        /// </summary>
-        public bool IsNestedPrivate
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.NestedPrivate);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a nested family type.
-        /// </summary>
-        public bool IsNestedFamily
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.NestedFamily);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a nested assembly type.
-        /// </summary>
-        public bool IsNestedAssembly
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.NestedAssembly);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a nested family and assembly type.
-        /// </summary>
-        public bool IsNestedFamANDAssem
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.NestedFamANDAssem);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a nested family or assembly type.
-        /// </summary>
-        public bool IsNestedFamORAssem
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.NestedFamORAssem);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has sequential layout.
-        /// </summary>
-        public bool HasSequentialLayout
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.SequentialLayout);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has explicit layout.
-        /// </summary>
-        public bool HasExplicitLayout
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.ExplicitLayout);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is abstract.
-        /// </summary>
-        public bool IsAbstract
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.Abstract);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is sealed.
-        /// </summary>
-        public bool IsSealed
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.Sealed);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a special name.
-        /// </summary>
-        public bool IsSpecialName
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.SpecialName);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a runtime special name.
-        /// </summary>
-        public bool IsRTSpecialName
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.RTSpecialName);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is an import.
-        /// </summary>
-        public bool IsImport
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.Import);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is serializable.
-        /// </summary>
-        public bool IsSerializable
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.Serializable);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a Windows runtime component.
-        /// </summary>
-        public bool IsWindowsRuntime
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.WindowsRuntime);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type uses CharSet.Unicode.
-        /// </summary>
-        public bool IsUnicodeClass
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.UnicodeClass);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type uses CharSet.Auto.
-        /// </summary>
-        public bool IsAutoClass
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.AutoClass);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has a custom format.
-        /// </summary>
-        public bool HasCustomFormat
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.CustomFormatClass);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has security.
-        /// </summary>
-        public bool HasSecurity
-        {
-            get
-            {
-                return TypeAttributes.HasFlag(TypeAttributes.HasSecurity);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type layout depends on other modules.
-        /// </summary>
-        public bool LayoutDependsOnOtherModules
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.LayoutDependsOnOtherModules);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a delegate.
-        /// </summary>
-        public bool IsDelegate
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.Delegate);
-            }
-        }
-
-        /// <summary>
-        /// Checks if value type statics in this class will be pinned.
-        /// </summary>
-        public bool FixedAddressVtStatics
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.FixedAddressVtStatics);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has layout information.
-        /// </summary>
-        public bool HasLayout
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.HasLayout);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is nested.
-        /// </summary>
-        public bool IsNested
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.IsNested);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is an equivalent type.
-        /// </summary>
-        public bool IsEquivalentType
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.IsEquivalentType);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has overlayed fields.
-        /// </summary>
-        public bool HasOverlayedFields
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.HasOverlayedFields);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has fields which must be explicitly initialized in a constructor.
-        /// </summary>
-        public bool HasFieldsWhichMustBeInited
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.HasFieldsWhichMustBeInited);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is an unsafe value type.
-        /// </summary>
-        public bool UnsafeValueType
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.UnsafeValueType);
-            }
-        }
-
-        /// <summary>
-        /// Checks if the BestFitMapping and ThrowOnUnmappableChar values are initialized.
-        /// </summary>
-        public bool BestFitMappingInited
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.BestFitMappingInited);
-            }
-        }
-
-        /// <summary>
-        /// Checks if the BestFitMapping is enabled.
-        /// </summary>
-        public bool BestFitMapping
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.BestFitMapping);
-            }
-        }
-
-        /// <summary>
-        /// Checks if ThrowOnUnmappableChar is enabled.
-        /// </summary>
-        public bool ThrowOnUnmappableChar
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.ThrowOnUnmappableChar);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has no Guid.
-        /// </summary>
-        public bool NoGuid
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.NoGuid);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has non-public fields.
-        /// </summary>
-        public bool HasNonPublicField
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.HasNonPublicFields);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type contains a stack pointer.
-        /// </summary>
-        public bool ContainsStackPtr
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.ContainsStackPtr);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type would like to have 8-byte alignment.
-        /// </summary>
-        public bool PreferAlign8
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.PreferAlign8);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is sparse for COM interop.
-        /// </summary>
-        public bool SparseForCominterop
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.SparseForCominterop);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has a CoClass attribute.
-        /// </summary>
-        public bool HasCoClassAttrib
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.HasCoClassAttrib);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a COM event interface.
-        /// </summary>
-        public bool IsComEventItf
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.ComEventItfMask);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is projected from WinRT.
-        /// </summary>
-        public bool IsProjectedFromWinRT
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.ProjectedFromWinRT);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is exported to WinRT.
-        /// </summary>
-        public bool IsExportedToWinRT
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.ExportedToWinRT);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is not tightly packed.
-        /// </summary>
-        public bool NotTightlyPacked
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.NotTightlyPacked);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type contains method implementations.
-        /// </summary>
-        public bool ContainsMethodImpls
-        {
-            get
-            {
-                return VMFlags.HasFlag(VMFlags.ContainsMethodImpls);
-            }
-        }
-
-        /// <summary>
-        /// Checks if the marshaling type of the class is Inhibit.
-        /// </summary>
-        public bool IsMarshalingTypeInhibit
-        {
-            get
-            {
-                return (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeInhibit;
-            }
-        }
-
-        /// <summary>
-        /// Checks if the marshaling type of the class is FreeThreaded.
-        /// </summary>
-        public bool IsMarshalingTypeFreeThreaded
-        {
-            get
-            {
-                return (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeFreeThreaded;
-            }
-        }
-
-        /// <summary>
-        /// Checks if the marshaling type of the class is Standard.
-        /// </summary>
-        public bool IsMarshalingTypeStandard
-        {
-            get
-            {
-                return (VMFlags & VMFlags.MarshalingTypeMask) == VMFlags.MarshalingTypeStandard;
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        /// <remarks>
+        ///     Uses declared managed reflection rather than scanning the native FieldDesc
+        ///     list, which has no sentinel terminator. Counts declared fields only,
+        ///     inherited fields are not included.
+        /// </remarks>
         public int GetFieldCount()
         {
-            if (ManagedSize == 0)
-                return 0;
-
-            for (int i = 0; i < 99999; i++)
-            {
-                if (*(FieldDesc?*)(FieldDescList + i) == null)
-                    return i - 1;
-            }
-
-            return 0;
+            return GetFieldInfos().Length;
         }
 
         /// <summary>
-        /// Gets an array of FieldDescs linked with the EEClass.
+        ///     Gets an array of native FieldDesc pointers for fields declared by the
+        ///     associated type (see <see cref="GetFieldInfos"/> for context caveats).
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public FieldDesc*[] GetFields()
         {
-            int length = GetFieldCount();
-            FieldDesc*[] fieldDescs = new FieldDesc*[length];
+            FieldInfo[] infos = GetFieldInfos();
+            FieldDesc*[] fieldDescs = new FieldDesc*[infos.Length];
 
-            for (int i = 0; i < length; i++)
-                fieldDescs[i] = FieldDescList + i;
+            for (int i = 0; i < infos.Length; i++)
+                fieldDescs[i] = (FieldDesc*)infos[i].FieldHandle.Value;
 
             return fieldDescs;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+        /// <summary>
+        ///     Gets the FieldDesc of the declared field with the given name, or null.
+        /// </summary>
         public FieldDesc* GetField(string name)
         {
-            foreach (FieldDesc* fieldDesc in GetFields())
-            {
-                if (fieldDesc->Name == name)
-                    return fieldDesc;
-            }
+            ArgumentNullException.ThrowIfNull(name);
+            FieldInfo? info = MethodTable->AsType().GetField(name, s_declaredFieldFlags);
 
-            return null;
+            if (info == null || info.IsLiteral)
+                return null;
+
+            return (FieldDesc*)info.FieldHandle.Value;
         }
 
+        /// <summary>Views this EEClass as an ArrayClass (only when <see cref="HasArrayClass"/>).</summary>
         public ArrayClass* AsArrayClass()
         {
             fixed (EEClass* ptr = &this)
@@ -872,6 +550,7 @@ namespace Cassowary.Runtime.VM.EE
             }
         }
 
+        /// <summary>Views this EEClass as a DelegateEEClass (only when <see cref="HasDelegateEEClass"/>).</summary>
         public DelegateEEClass* AsDelegateEEClass()
         {
             fixed (EEClass* ptr = &this)
@@ -880,68 +559,64 @@ namespace Cassowary.Runtime.VM.EE
             }
         }
 
-        public GuidInfo* GetOrMakeGuid()
+        /// <summary>
+        ///     Gets the GuidInfo for this EEClass, or creates one from the type's GUID when
+        ///     no cached info exists. Returns a managed copy. The previous version
+        ///     returned a pointer to a stack local.
+        /// </summary>
+        public GuidInfo GetOrMakeGuid()
         {
-            if (HasGuidInfo)
-                return GuidInfo;
+            if (HasGuidInfo && GuidInfo != null)
+                return *GuidInfo;
 
-            GuidInfo guidInfo = new GuidInfo(MethodTable->AsType().GUID, true);
-            return &guidInfo;
+            return new GuidInfo(MethodTable->AsType().GUID, true);
         }
+
+        /// <summary>
+        ///     Byte size of a supported vector type, Vector&lt;T&gt;, Vector64&lt;T&gt;
+        ///     or Vector128&lt;T&gt; with a primitive element type. Returns 0 otherwise.
+        /// </summary>
+        private static readonly Type[] s_vectorElementTypes =
+        {
+            typeof(sbyte), typeof(byte), typeof(short), typeof(ushort),
+            typeof(int), typeof(uint), typeof(long), typeof(ulong),
+            typeof(float), typeof(double), typeof(nint), typeof(nuint)
+        };
 
         public int GetVectorSize()
         {
-            if (MethodTable->AsType() == typeof(System.Numerics.Vector))
-            {
-                return MethodTable->GetNumInstanceFieldBytes();
-            }
-            else if (MethodTable->AsType() == typeof(Vector64))
-            {
-                return 8;
-            }
-            else if (MethodTable->AsType() == typeof(Vector128))
-            {
-                return 16;
-            }
-            else if (MethodTable->AsType() == typeof(Vector256))
-            {
-                return 32;
-            }
+            Type type = MethodTable->AsType();
 
+            if (!type.IsGenericType)
+                return 0;
+
+            Type[] args = type.GetGenericArguments();
+            if (args.Length != 1 || !s_vectorElementTypes.Contains(args[0]))
+                return 0;
+
+            Type def = type.GetGenericTypeDefinition();
+
+            if (def == typeof(System.Numerics.Vector<>))
+                return MethodTable->GetNumInstanceFieldBytes();
+            if (def == typeof(System.Runtime.Intrinsics.Vector64<>))
+                return 8;
+            if (def == typeof(System.Runtime.Intrinsics.Vector128<>))
+                return 16;
+
+            // Vector256<T> is not a .NET 8 CoreCLR native vector size here.
             return 0;
         }
 
+        /// <summary>
+        ///     HFA element type is always NONE on the supported x64 ABIs (HFA classification
+        ///     is ARM64-only).
+        /// </summary>
         public CorInfoHFAElemType GetHFAElemType()
         {
-            int vectorSize = GetVectorSize();
-
-            if (vectorSize == 8)
-            {
-                return CorInfoHFAElemType.CORINFO_HFA_ELEM_VECTOR64;
-            }
-            else if (vectorSize == 16)
-            {
-                return CorInfoHFAElemType.CORINFO_HFA_ELEM_VECTOR128;
-            }
-            else if (vectorSize == 32)
-            {
-                return CorInfoHFAElemType.CORINFO_HFA_ELEM_VECTOR256;
-            }
-
-            FieldDesc* fieldDesc = GetFields()[0];
-
-            if (fieldDesc->CorElementType == CorElementType.ELEMENT_TYPE_R4)
-            {
-                return CorInfoHFAElemType.CORINFO_HFA_ELEM_FLOAT;
-            }
-            else if (fieldDesc->CorElementType == CorElementType.ELEMENT_TYPE_R8)
-            {
-                return CorInfoHFAElemType.CORINFO_HFA_ELEM_DOUBLE;
-            }
-
             return CorInfoHFAElemType.CORINFO_HFA_ELEM_NONE;
         }
 
+        /// <summary>Gets the CharSet implied by the string-format flags.</summary>
         public CharSet GetCharSet()
         {
             if (IsAnsiClass)

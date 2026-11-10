@@ -3,7 +3,6 @@ using Cassowary.Runtime.Cor;
 using Cassowary.Runtime.VM.EE;
 using Cassowary.Signatures;
 using JetBrains.Annotations;
-using System.Collections;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -11,29 +10,28 @@ using System.Runtime.InteropServices;
 namespace Cassowary.Runtime.VM
 {
     /// <summary>
-    ///     The value of lowest two bits describe what the union contains
-    ///     <remarks>
-    ///         Use with <see cref="MethodTable.Union0Type" />
-    ///     </remarks>
+    ///     The value of the lowest bit of the union at offset 40 describes what it contains
+    ///     (.NET 8 CoreCLR: UNION_EECLASS = 0, UNION_METHODTABLE = 1, UNION_MASK = 1).
     /// </summary>
-    [Flags]
     public enum Union0Type
     {
+        /// <summary>Pointer to the EEClass, this MethodTable is canonical.</summary>
         EEClass = 0,
-        MethodTable = 2,
-        Indirection = 3,
-        NullFacingEEClass = 4,
-        NullFacingMethodTable = 5
+        /// <summary>Pointer to the canonical MethodTable (tagged with low bit).</summary>
+        MethodTable = 1
     }
 
+    /// <summary>
+    ///     High 16 bits of the native m_dwFlags field (.NET 8 WFLAGS_HIGH_ENUM).
+    ///     The low 16 bits are component size (arrays/strings) or the generics flags,
+    ///     see <see cref="VM.GenericsFlags"/>.
+    /// </summary>
     [Flags]
     public enum TypeFlags : uint
     {
+        /// <summary>Category mask.</summary>
         Mask = 0x000F0000,
         Class = 0x00000000,
-        MarshalByRefMask = 0x000E0000,
-        MarshalByRef = 0x00020000,
-        Contextful = 0x00030000,
         ValueType = 0x00040000,
         ValueTypeMask = 0x000C0000,
         Nullable = 0x00050000,
@@ -43,25 +41,29 @@ namespace Cassowary.Runtime.VM
         ArrayMask = 0x000C0000,
         IfArrayThenSzArray = 0x00020000,
         Interface = 0x000C0000,
-        TransparentProxy = 0x000E0000,
-        AsyncPin = 0x000F0000,
         ElementTypeMask = 0x000E0000,
         HasFinalizer = 0x00100000,
-        IfNotInterfaceThenMarshalable = 0x00200000,
-        IfInterfaceThenHasGuidInfo = 0x00200000,
+        /// <summary>Class implements IDynamicInterfaceCastable.</summary>
+        IDynamicInterfaceCastable = 0x00200000,
         ICastable = 0x00400000,
-        HasIndirectParent = 0x00800000,
+        /// <summary>0x00800000 is unused in .NET 8.</summary>
+        Unused_1 = 0x00800000,
         ContainsPointers = 0x01000000,
         HasTypeEquivalence = 0x02000000,
-        HasRCWPerTypeData = 0x04000000,
+        /// <summary>Type is a tracked reference with a finalizer.</summary>
+        IsTrackedReferenceWithFinalizer = 0x04000000,
         HasCriticalFinalizer = 0x08000000,
         Collectible = 0x10000000,
         ContainsGenericVariables = 0x20000000,
         ComObject = 0x40000000,
         HasComponentSize = 0x80000000,
-        NonTrivialInterfaceCast = Array | ComObject | ICastable
+        /// <summary>Any of the non-trivial-interface-cast bits (masked-any check, not equality).</summary>
+        NonTrivialInterfaceCast = Array | ComObject | ICastable | IDynamicInterfaceCastable | ValueType
     }
 
+    /// <summary>
+    ///     m_wFlags2 of the native MethodTable (offset 8).
+    /// </summary>
     [Flags]
     public enum InterfaceFlags : ushort
     {
@@ -71,19 +73,23 @@ namespace Cassowary.Runtime.VM
         HasDispatchMapSlot = 0x0004,
         HasNonVirtualSlots = 0x0008,
         HasModuleOverride = 0x0010,
-        IsZapped = 0x0020,
-        IsPreRestored = 0x0040,
         HasModuleDependencies = 0x0080,
         IsIntrinsicType = 0x0100,
         RequiresDispatchTokenFat = 0x0200,
         HasCctor = 0x0400,
-        HasCCWTemplate = 0x0800,
+        /// <summary>Type has virtual static methods on interfaces (.NET 8, replaces the old CCW flag).</summary>
+        HasVirtualStaticMethods = 0x0800,
         RequiresAlign8 = 0x1000,
         HasBoxedRegularStatics = 0x2000,
         HasSingleNonVirtualSlot = 0x4000,
         DependsOnEquivalentOrForwardedStructs = 0x8000
     }
 
+    /// <summary>
+    ///     Low 16 bits of the native m_dwFlags field when component size is not in use
+    ///     (.NET 8 WFLAGS_LOW_ENUM). Overlaps <see cref="MethodTable.ComponentSize"/> for
+    ///     string/array types.
+    /// </summary>
     [Flags]
     public enum GenericsFlags : ushort
     {
@@ -99,391 +105,325 @@ namespace Cassowary.Runtime.VM
         GenericsMask_GenericInst = 0x00000010,
         GenericsMask_SharedInst = 0x00000020,
         GenericsMask_TypicalInst = 0x00000030,
-        HasRemotingVtsInfo = 0x00000080,
         HasVariance = 0x00000100,
         HasDefaultCtor = 0x00000200,
         HasPreciseInitCctors = 0x00000400,
-        IsHFA = 0x00000800,
+        /// <summary>UNIX_AMD64_ABI only: type is passed in registers by the System V ABI.</summary>
         IsRegStructPassed = 0x00000800,
         IsByRefLike = 0x00001000
     }
 
-    /// <remarks>
-    /// This structure should generally not be created by using (MethodTable*)Type.TypeHandle.Value, as it can cause a runtime crash.
-    /// </remarks>
+    /// <summary>
+    ///     Read-only view over the first 64 bytes (fixed header) of a native CoreCLR
+    ///     MethodTable. Valid only on configurations accepted by
+    ///     <see cref="RuntimeSupport"/>, pointers are views into runtime-owned memory and
+    ///     the owning Type must be kept alive for as long as a MethodTable* is used.
+    /// </summary>
     [UseAsPointer]
     [Intrinsic]
     [StructLayout(LayoutKind.Explicit)]
     public unsafe partial struct MethodTable
     {
         /// <summary>
-        /// Gets the MethodTable of the provided type.
+        ///     Gets the MethodTable of the provided type.
         /// </summary>
-        /// <param name="type">The type to get the MethodTable of.</param>
-        /// <returns>The MethodTable of the provided type.</returns>
+        /// <exception cref="ArgumentNullException">type is null.</exception>
+        /// <exception cref="NotSupportedException">
+        ///     The type is a pointer, byref, function pointer, generic parameter, or a
+        ///     non-runtime (e.g. TypeBuilder) type, these are backed by TypeDescs or have no
+        ///     MethodTable.
+        /// </exception>
+        /// <exception cref="PlatformNotSupportedException">Unsupported runtime/OS/architecture.</exception>
         internal static MethodTable* FromType(Type type)
         {
-            if (type.IsPointer)
-            {
-                MethodTable* pMT = FromType(type.GetElementType()!);
-                pMT->SetIsPointer();
-                return pMT;
-            }
+            ArgumentNullException.ThrowIfNull(type);
+            RuntimeSupport.EnsureSupported();
 
-            if (type.IsByRef)
-                return FromType(type.GetElementType()!);
+            if (type.IsPointer || type.IsByRef || type.IsFunctionPointer || type.IsGenericParameter)
+                throw new NotSupportedException($"{type} is a TypeDesc-backed type and has no MethodTable.");
+
+            // Only genuine runtime types have a MethodTable, TypeBuilder and friends do not.
+            if (!typeof(object).GetType().IsInstanceOfType(type))
+                throw new NotSupportedException($"{type} is not a runtime type.");
 
             return (MethodTable*)type.TypeHandle.Value;
         }
 
         /// <summary>
-        /// Gets the MethodTable of the provided object's type, creating an ArrayDesc if possible.
+        ///     Gets the MethodTable of the provided object's type by reading the object header.
+        ///     Read-only: performs no metadata writes and never enumerates the object.
         /// </summary>
-        /// <param name="obj">The object to get the MethodTable of.</param>
-        /// <returns>The MethodTable of the provided object.</returns>
+        /// <exception cref="ArgumentNullException">obj is null.</exception>
         internal static MethodTable* FromObject(object obj)
         {
-            if (obj == null)
-                return FromType(typeof(object));
+            ArgumentNullException.ThrowIfNull(obj);
+            RuntimeSupport.EnsureSupported();
 
-            if (obj is Array array)
-            {
-                MethodTable* ptr = (MethodTable*)Unsafe.Add(ref Unsafe.As<byte, nint>(ref Intrinsics.GetData(obj)), -1);
-                ptr->SetArrayDesc(*(ArrayDesc*)Intrinsics.GetPointer(array));
-                return ptr;
-            }
-            else if (obj is IEnumerable objs)
-            {
-                object[] objsCast = objs.Cast<object>().ToArray();
-                MethodTable* ptr = (MethodTable*)Unsafe.Add(ref Unsafe.As<byte, nint>(ref Intrinsics.GetData(obj)), -1);
-                ptr->SetArrayDesc(new ArrayDesc((byte)objsCast.Count(),
-                    FromObject(objsCast.First())->GetClass()->LayoutEEClass->LayoutInfo.ManagedSize,
-                    FromObject(objsCast)->GetClass()->Rank));
-                return ptr;
-            }
-
-            return (MethodTable*)Unsafe.Add(ref Unsafe.As<byte, nint>(ref Intrinsics.GetData(obj)), -1);
+            // The MethodTable pointer is the first word of every managed object, the
+            // heap data reference points one pointer slot past it.
+            return *(MethodTable**)Unsafe.Sub(Unsafe.AsPointer(ref Intrinsics.GetData(obj)), sizeof(nint));
         }
 
         /// <summary>
-        /// Size of the component or type flags, depending on the context.
+        ///     Low word of m_dwFlags: generics/statics flags, overlapped by component size
+        ///     for array/string types.
         /// </summary>
         [FieldOffset(0)]
-        private readonly short _componentSize; // m_dwComponentSize
+        public readonly GenericsFlags GenericsFlags;
 
         /// <summary>
-        /// Flags representing the type of the MethodTable.
+        ///     m_dwFlags: low 16 bits are the generics flags / component size union, high 16
+        ///     bits are the category and type flags.
         /// </summary>
         [FieldOffset(0)]
-        public readonly TypeFlags TypeFlags; // m_eTypeFlags
+        public readonly TypeFlags TypeFlags;
 
         /// <summary>
-        /// Flags representing generics-related information for the MethodTable.
-        /// </summary>
-        [FieldOffset(2)]
-        public readonly GenericsFlags GenericsFlags; // m_eGenericsFlags
-
-        /// <summary>
-        /// Size of the base type represented by the MethodTable.
+        ///     Size of the base type represented by the MethodTable.
         /// </summary>
         [FieldOffset(4)]
-        public readonly int BaseSize; // m_dwBaseSize
+        public readonly int BaseSize;
 
         /// <summary>
-        /// Flags representing the interface-related information for the MethodTable.
+        ///     m_wFlags2: interface/multipurpose-slot related information.
         /// </summary>
         [FieldOffset(8)]
-        public readonly InterfaceFlags InterfaceFlags; // m_eInterfaceFlags
+        public readonly InterfaceFlags InterfaceFlags;
 
         /// <summary>
-        /// Metadata token associated with the MethodTable.
+        ///     Metadata token associated with the MethodTable.
         /// </summary>
         [FieldOffset(10)]
-        public readonly ushort MetadataToken; // m_wToken
+        public readonly ushort MetadataToken;
 
         /// <summary>
-        /// Number of virtual methods declared in the MethodTable.
+        ///     Number of virtual methods declared in the MethodTable.
         /// </summary>
         [FieldOffset(12)]
-        public readonly ushort NumVirtuals; // m_wNumVirtuals
+        public readonly ushort NumVirtuals;
 
         /// <summary>
-        /// Number of interfaces implemented by the type represented by the MethodTable.
+        ///     Number of interfaces implemented by the type represented by the MethodTable.
         /// </summary>
         [FieldOffset(14)]
-        public readonly ushort NumInterfaces; // m_wNumInterfaces
+        public readonly ushort NumInterfaces;
 
         /// <summary>
-        /// Pointer to the parent MethodTable from which this MethodTable inherits, if any.
+        ///     Pointer to the parent MethodTable from which this MethodTable inherits, if any.
         /// </summary>
         [CanBeNull]
         [FieldOffset(16)]
-        public readonly MethodTable* ParentMethodTable; // m_pParentMethodTable
+        public readonly MethodTable* ParentMethodTable;
 
         /// <summary>
-        /// Pointer to the module that loaded the type associated with the MethodTable.
+        ///     Pointer to the module that loaded the type associated with the MethodTable.
         /// </summary>
         [CanBeNull]
         [FieldOffset(24)]
-        public readonly void* LoaderModule; // m_pLoaderModule
+        public readonly void* LoaderModule;
 
         /// <summary>
-        /// Pointer to writeable data associated with the MethodTable.
+        ///     Pointer to writeable data associated with the MethodTable.
         /// </summary>
         [FieldOffset(32)]
-        public readonly WriteableData* WriteableData; // m_pWriteableData
+        public readonly WriteableData* WriteableData;
 
         /// <summary>
-        /// Part of union 0, pointer to the EEClass (cold data) shared with this MethodTable, if any.
+        ///     Part of union 0, pointer to the EEClass (cold data) shared with this MethodTable, if any.
         /// </summary>
         [CanBeNull]
         [FieldOffset(40)]
-        public readonly EEClass* EEClass; // m_pEEClass
+        public readonly EEClass* EEClass;
 
         /// <summary>
-        /// Part of union 0, pointer to the canonical MethodTable that represents shared type information, if any.
+        ///     Part of union 0, pointer to the canonical MethodTable that represents shared type information, if any.
+        ///     The pointer is tagged with the low bit when it is a canonical MethodTable.
         /// </summary>
         [CanBeNull]
         [FieldOffset(40)]
-        public readonly MethodTable* CanonMethodTable; // m_pCanonMT
+        public readonly MethodTable* CanonMethodTable;
 
         /// <summary>
-        /// Part of union 1, instance information used by the Runtime for this MethodTable.
+        ///     Part of union 1, instance information used by the Runtime for this MethodTable.
         /// </summary>
         [CanBeNull]
         [FieldOffset(48)]
-        public readonly byte* PerInstInfo; // m_pPerInstInfo
+        public readonly byte* PerInstInfo;
 
         /// <summary>
-        /// Part of union 1, MethodTable to the element type owned by this MethodTable.
+        ///     Part of union 1, MethodTable to the element type owned by this MethodTable.
         /// </summary>
         [CanBeNull]
         [FieldOffset(48)]
-        public readonly MethodTable* ElementMethodTable; // m_pElementMT
+        public readonly MethodTable* ElementMethodTable;
 
         /// <summary>
-        /// Part of union 1, multipurpose slot 1 information used by the runtime.
+        ///     Part of union 1, multipurpose slot 1 information used by the runtime.
         /// </summary>
         [CanBeNull]
         [FieldOffset(48)]
-        public readonly byte* MultiPurposeSlot1; // m_pMultipurposeSlot1
+        public readonly byte* MultiPurposeSlot1;
 
         /// <summary>
-        /// Part of union 2, pointer to the interface map of this MethodTable.
+        ///     Part of union 2, pointer to the interface map of this MethodTable.
         /// </summary>
         [CanBeNull]
         [FieldOffset(56)]
-        public readonly MethodTable* InterfaceMap; // m_pInterfaceMap
+        public readonly MethodTable* InterfaceMap;
 
         /// <summary>
-        /// Part of union 2, multipurpose slot 2 information used by the runtime.
+        ///     Part of union 2, multipurpose slot 2 information used by the runtime.
         /// </summary>
         [CanBeNull]
         [FieldOffset(56)]
-        public readonly byte* MultiPurposeSlot2; // m_pMultipurposeSlot2
+        public readonly byte* MultiPurposeSlot2;
+
+        private const nuint UNION_MASK = 1;
+
+        private nuint UnionRaw => (nuint)CanonMethodTable;
 
         /// <summary>
-        /// Array Descriptor.
-        /// </summary>
-        [CanBeNull]
-        [FieldOffset(64)]
-        internal ArrayDesc ArrayDesc;
-
-        [CanBeNull]
-        [FieldOffset(80)]
-        private int _isPointer;
-
-        /// <summary>
-        /// Sets the ArrayDesc for the MethodTable.
-        /// </summary>
-        /// <param name="arrayDesc">The ArrayDesc to set.</param>
-        internal void SetArrayDesc(ArrayDesc arrayDesc)
-        {
-            ArrayDesc = arrayDesc;
-            ArrayDesc.Contained = 1;
-        }
-
-        /// <summary>
-        /// Sets IsPointer for the MethodTable.
-        /// </summary>
-        internal void SetIsPointer()
-        {
-            _isPointer = 1;
-        }
-
-        /// <summary>
-        /// Checks if the MethodTable has an associated ArrayDesc.
-        /// </summary>
-        public bool HasArrayDesc
-        {
-            get
-            {
-                // This is a relatively faulty check, but it's okay because I said so.
-                return ArrayDesc.Contained == 1;
-            }
-        }
-
-        /// <summary>
-        /// Gets the name of the type associated with this MethodTable.
-        /// </summary>
-        public string Name
-        {
-            get
-            {
-                return ((dynamic)Intrinsics.AsRuntimeType(AsType())).Name;
-            }
-        }
-
-        /// <summary>
-        /// Checks if the EEClass field is truly present or not.
-        /// </summary>
-        public bool HasEEClass
-        {
-            get
-            {
-                try
-                {
-                    return (Union0Type)((long)CanonMethodTable & 3) == Union0Type.EEClass && (object?)*EEClass != null;
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Checks if the Canon field is truly present or not.
-        /// </summary>
-        public bool HasCanon
-        {
-            get
-            {
-                try
-                {
-                    return !IsTruePrimitive && (Union0Type)((long)CanonMethodTable & 3) == Union0Type.MethodTable && (object?)*CanonMethodTable != null;
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Gets the component size of the MethodTable.
-        /// </summary>
-        public int ComponentSize
-        {
-            get
-            {
-                if (HasEEClass && EEClass->HasArrayClass)
-                {
-                    return _componentSize;
-                }
-                else if (HasArrayDesc)
-                {
-                    return ArrayDesc.ElemSize;
-                }
-
-                return 0;
-            }
-        }
-
-        /// <summary>
-        ///     Describes what the union at offset <c>40</c> points to.
-        ///     contains.
+        ///     Raw union 0 value masked to the low tag bit.
         /// </summary>
         public Union0Type Union0Type
         {
             get
             {
-                Union0Type unionType = (Union0Type)((long)CanonMethodTable & 3);
-
-                if (unionType == Union0Type.EEClass && !HasEEClass)
-                {
-                    return Union0Type.NullFacingEEClass;
-                }
-                else if (unionType == Union0Type.MethodTable && !HasCanon)
-                {
-                    return Union0Type.NullFacingMethodTable;
-                }
-
-                return unionType;
+                return (Union0Type)(UnionRaw & UNION_MASK);
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has any parent type.
+        ///     Checks if the union holds an EEClass pointer (canonical MethodTable).
+        /// </summary>
+        public bool HasEEClass
+        {
+            get
+            {
+                return (UnionRaw & UNION_MASK) == (nuint)Union0Type.EEClass;
+            }
+        }
+
+        /// <summary>
+        ///     Checks if the union holds a tagged canonical-MethodTable pointer.
+        /// </summary>
+        public bool HasCanon
+        {
+            get
+            {
+                return (UnionRaw & UNION_MASK) == (nuint)Union0Type.MethodTable;
+            }
+        }
+
+        /// <summary>
+        ///     The canonical (unshared) MethodTable for this instantiation: this MethodTable
+        ///     itself when the union holds an EEClass, otherwise the untagged target.
+        /// </summary>
+        public MethodTable* GetCanonicalMethodTable()
+        {
+            if (HasCanon)
+                return (MethodTable*)(UnionRaw & ~UNION_MASK);
+
+            fixed (MethodTable* ptr = &this)
+            {
+                return ptr;
+            }
+        }
+
+        /// <summary>
+        ///     Gets the component size of the MethodTable (array element or string char size).
+        ///     Only valid while <see cref="TypeFlags.HasComponentSize"/> is set.
+        /// </summary>
+        public ushort ComponentSize
+        {
+            get
+            {
+                fixed (MethodTable* ptr = &this)
+                {
+                    return HasComponentSize ? *(ushort*)ptr : (ushort)0;
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Gets the name of the type associated with this MethodTable.
+        /// </summary>
+        public string Name
+        {
+            get
+            {
+                return AsType().Name;
+            }
+        }
+
+        /// <summary>
+        ///     Always false: a valid MethodTable is never a pointer-type descriptor
+        ///     (pointer types are TypeDescs and are rejected by <see cref="FromType"/>).
+        /// </summary>
+        [Obsolete("A MethodTable is never a pointer type; TypeDesc-backed types are rejected by FromType.")]
+        public bool IsPointer => false;
+
+        /// <summary>
+        ///     Always false: no library-managed ArrayDesc exists in the native header.
+        /// </summary>
+        [Obsolete("Cassowary no longer annotates MethodTables with a synthetic ArrayDesc.")]
+        public bool HasArrayDesc => false;
+
+        /// <summary>
+        ///     Gets a value determining whether or not the associated type has any parent type.
         /// </summary>
         public bool HasParent
         {
             get
             {
-                try
-                {
-                    if (GetClass()->IsNested)
-                        return true;
-
-                    if ((nint)ParentMethodTable == 0)
-                        return false;
-
-                    // This is just intended to cause a object reference error (if the pointer doesn't point to CCWTemplate)
-                    return (object?)*ParentMethodTable != null;
-                }
-                catch
-                {
-                    return false;
-                }
+                return (nint)ParentMethodTable != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a pointer type.
-        /// </summary>
-        public bool IsPointer
-        {
-            get
-            {
-                return _isPointer == 1;
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is an enum type.
+        ///     Gets a value determining whether or not the associated type is an enum type.
         /// </summary>
         public bool IsEnum
         {
             get
             {
-                return HasParent && ParentMethodTable == FromType(typeof(Enum));
+                fixed (MethodTable* ptr = &this)
+                {
+                    return HasParent && ParentMethodTable == FromType(typeof(Enum));
+                }
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is void.
+        ///     Gets a value determining whether or not the associated type is void.
         /// </summary>
         public bool IsVoid
         {
             get
             {
-                return *(MethodTable*)typeof(void).TypeHandle.Value == this;
+                fixed (MethodTable* ptr = &this)
+                {
+                    return ptr == FromType(typeof(void));
+                }
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a string.
+        ///     Gets a value determining whether or not the associated type is a string.
         /// </summary>
         public bool IsString
         {
             get
             {
-                return *(MethodTable*)typeof(string).TypeHandle.Value == this;
+                fixed (MethodTable* ptr = &this)
+                {
+                    return ptr == FromType(typeof(string));
+                }
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a string or array type.
+        ///     Gets a value determining whether or not the associated type is a string or array type.
         /// </summary>
         public bool IsStringOrArray
         {
@@ -493,30 +433,16 @@ namespace Cassowary.Runtime.VM
             }
         }
 
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is marshalable by reference.
-        /// </summary>
-        public bool IsMarshalByRef
-        {
-            get
-            {
-                return (TypeFlags & TypeFlags.MarshalByRefMask) == TypeFlags.MarshalByRef;
-            }
-        }
+        /// <summary>Always throws: the marshal-by-ref category was removed from CoreCLR.</summary>
+        [Obsolete("The MarshalByRef category does not exist in .NET 8 CoreCLR MethodTable flags.")]
+        public bool IsMarshalByRef => throw new PlatformNotSupportedException();
+
+        /// <summary>Always throws: the contextful category was removed from CoreCLR.</summary>
+        [Obsolete("The Contextful category does not exist in .NET 8 CoreCLR MethodTable flags.")]
+        public bool IsContextful => throw new PlatformNotSupportedException();
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is contextful.
-        /// </summary>
-        public bool IsContextful
-        {
-            get
-            {
-                return TypeFlags.HasFlag(TypeFlags.Contextful);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is a value type.
+        ///     Gets a value determining whether or not the associated type is a value type.
         /// </summary>
         public bool IsValueType
         {
@@ -527,40 +453,40 @@ namespace Cassowary.Runtime.VM
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is nullable.
+        ///     Gets a value determining whether or not the associated type is nullable.
         /// </summary>
         public bool IsNullable
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.Nullable);
+                return (TypeFlags & TypeFlags.Mask) == TypeFlags.Nullable;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a primitive value type (enum, primitive, etc.)
+        ///     Gets a value determining whether or not the associated type is a primitive value type (enum, primitive, etc.)
         /// </summary>
         public bool IsPrimitiveValueType
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.PrimitiveValueType);
+                return (TypeFlags & TypeFlags.Mask) == TypeFlags.PrimitiveValueType;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a true primitive type.
+        ///     Gets a value determining whether or not the associated type is a true primitive type.
         /// </summary>
         public bool IsTruePrimitive
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.TruePrimitive);
+                return (TypeFlags & TypeFlags.Mask) == TypeFlags.TruePrimitive;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is an Array.
+        ///     Gets a value determining whether or not the associated type is an Array.
         /// </summary>
         public bool IsArray
         {
@@ -571,502 +497,477 @@ namespace Cassowary.Runtime.VM
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is an SZArray.
+        ///     Gets a value determining whether or not the associated type is an SZArray.
         /// </summary>
         public bool IsSZArray
         {
             get
             {
-                return IsArray && TypeFlags.HasFlag(TypeFlags.IfArrayThenSzArray);
+                return IsArray && (TypeFlags & TypeFlags.IfArrayThenSzArray) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is an interface.
+        ///     Gets a value determining whether or not the associated type is an interface.
         /// </summary>
         public bool IsInterface
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.Interface);
+                return (TypeFlags & TypeFlags.Mask) == TypeFlags.Interface;
             }
         }
 
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is an interface that has GuidInfo.
-        /// </summary>
-        public bool IsInterfaceWithGuidInfo
-        {
-            get
-            {
-                return IsInterface && TypeFlags.HasFlag(TypeFlags.IfInterfaceThenHasGuidInfo);
-            }
-        }
+        /// <summary>Always throws: there is no GuidInfo flag in .NET 8 CoreCLR MethodTable flags.</summary>
+        [Obsolete("The HasGuidInfo interface flag does not exist in .NET 8 CoreCLR MethodTable flags.")]
+        public bool IsInterfaceWithGuidInfo => throw new PlatformNotSupportedException();
+
+        /// <summary>Always throws: the transparent-proxy category was removed from CoreCLR.</summary>
+        [Obsolete("The TransparentProxy category does not exist in .NET 8 CoreCLR MethodTable flags.")]
+        public bool IsTransparentProxy => throw new PlatformNotSupportedException();
+
+        /// <summary>Always throws: the async-pin category was removed from CoreCLR.</summary>
+        [Obsolete("The AsyncPin category does not exist in .NET 8 CoreCLR MethodTable flags.")]
+        public bool IsAsyncPin => throw new PlatformNotSupportedException();
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a transparent proxy.
-        /// </summary>
-        public bool IsTransparentProxy
-        {
-            get
-            {
-                return TypeFlags.HasFlag(TypeFlags.TransparentProxy);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is associated with an async pin.
-        /// </summary>
-        public bool IsAsyncPin
-        {
-            get
-            {
-                return TypeFlags.HasFlag(TypeFlags.AsyncPin);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has a finalizer.
+        ///     Gets a value determining whether or not the associated type has a finalizer.
         /// </summary>
         public bool HasFinalizer
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.HasFinalizer);
+                return (TypeFlags & TypeFlags.HasFinalizer) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is an ICastable.
+        ///     Gets a value determining whether or not the associated type is an ICastable.
         /// </summary>
         public bool IsICastable
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.ICastable);
+                return (TypeFlags & TypeFlags.ICastable) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has an indirect parent.
+        ///     Gets a value determining whether or not the associated type implements
+        ///     IDynamicInterfaceCastable.
         /// </summary>
-        public bool HasIndirectParent
+        public bool IsIDynamicInterfaceCastable
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.HasIndirectParent);
+                return (TypeFlags & TypeFlags.IDynamicInterfaceCastable) != 0;
             }
         }
 
+        /// <summary>Always throws: the indirect-parent meaning was removed from .NET 8 flags.</summary>
+        [Obsolete("The HasIndirectParent bit is unused in .NET 8 CoreCLR MethodTable flags.")]
+        public bool HasIndirectParent => throw new PlatformNotSupportedException();
+
         /// <summary>
-        /// Gets a value determining whether or not the associated type contains any pointers.
+        ///     Gets a value determining whether or not the associated type contains any pointers.
         /// </summary>
         public bool ContainsPointers
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.ContainsPointers);
+                return (TypeFlags & TypeFlags.ContainsPointers) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is equivalent to any other types.
+        ///     Gets a value determining whether or not the associated type is equivalent to any other types.
         /// </summary>
         public bool HasTypeEquivalence
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.HasTypeEquivalence);
+                return (TypeFlags & TypeFlags.HasTypeEquivalence) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has RCW per-type data.
+        ///     Gets a value determining whether or not the associated type is a tracked
+        ///     reference with a finalizer.
         /// </summary>
-        public bool HasRCWPerTypeData
+        public bool IsTrackedReferenceWithFinalizer
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.HasRCWPerTypeData);
+                return (TypeFlags & TypeFlags.IsTrackedReferenceWithFinalizer) != 0;
             }
         }
 
+        /// <summary>Always throws: the RCW per-type-data bit was removed from .NET 8 flags.</summary>
+        [Obsolete("The HasRCWPerTypeData bit does not exist in .NET 8 CoreCLR MethodTable flags.")]
+        public bool HasRCWPerTypeData => throw new PlatformNotSupportedException();
+
         /// <summary>
-        /// Gets a value determining whether or not the associated type has a critical finalizer that must be executed.
+        ///     Gets a value determining whether or not the associated type has a critical finalizer that must be executed.
         /// </summary>
         public bool HasCriticalFinalizer
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.HasCriticalFinalizer);
+                return (TypeFlags & TypeFlags.HasCriticalFinalizer) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is collectible.
+        ///     Gets a value determining whether or not the associated type is collectible.
         /// </summary>
         public bool IsCollectible
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.Collectible);
+                return (TypeFlags & TypeFlags.Collectible) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type contains any generic variables.
+        ///     Gets a value determining whether or not the associated type contains any generic variables.
         /// </summary>
         public bool ContainsGenericVariables
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.ContainsGenericVariables);
+                return (TypeFlags & TypeFlags.ContainsGenericVariables) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a COM object.
+        ///     Gets a value determining whether or not the associated type is a COM object.
         /// </summary>
         public bool IsCOMObject
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.ComObject);
+                return (TypeFlags & TypeFlags.ComObject) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has a component size, like an Array.
+        ///     Gets a value determining whether or not the associated type has a component size, like an Array.
         /// </summary>
         public bool HasComponentSize
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.HasComponentSize);
+                return (TypeFlags & TypeFlags.HasComponentSize) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has a non-trivial interface cast.
+        ///     Gets a value determining whether or not the associated type has a non-trivial interface cast.
         /// </summary>
         public bool HasNonTrivialInterfaceCast
         {
             get
             {
-                return TypeFlags.HasFlag(TypeFlags.NonTrivialInterfaceCast);
+                return (TypeFlags & TypeFlags.NonTrivialInterfaceCast) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a static dynamic.
+        ///     The generics flags word when component size is not in use. For arrays and
+        ///     strings the low word is component size, so the effective flags are the
+        ///     native default StringArrayValues, which is 0.
+        /// </summary>
+        private GenericsFlags EffectiveLowFlags => HasComponentSize ? (GenericsFlags)0 : GenericsFlags;
+
+        /// <summary>
+        ///     Gets a value determining whether or not the associated type is a static dynamic.
         /// </summary>
         public bool IsDynamicStatics
         {
             get
             {
-                return (GenericsFlags & GenericsFlags.StaticsMask) != GenericsFlags.StaticsMask_NonDynamic;
+                return (EffectiveLowFlags & GenericsFlags.StaticsMask) != GenericsFlags.StaticsMask_NonDynamic;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is not in it's preferred zap module.
+        ///     Gets a value determining whether or not the associated type is not in it's preferred zap module.
         /// </summary>
         public bool IsNotInPZM
         {
             get
             {
-                return GenericsFlags.HasFlag(GenericsFlags.NotInPZM);
+                return (EffectiveLowFlags & GenericsFlags.NotInPZM) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a generic instance.
+        ///     Gets a value determining whether or not the associated type is a generic instance.
         /// </summary>
         public bool IsGenericInst
         {
             get
             {
-                return (GenericsFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_GenericInst;
+                return (EffectiveLowFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_GenericInst;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a shared instance.
+        ///     Gets a value determining whether or not the associated type is a shared instance.
         /// </summary>
         public bool IsGenericSharedInst
         {
             get
             {
-                return (GenericsFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_SharedInst;
+                return (EffectiveLowFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_SharedInst;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a typical instance.
+        ///     Gets a value determining whether or not the associated type is a typical instance.
         /// </summary>
         public bool IsGenericTypicalInst
         {
             get
             {
-                return (GenericsFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_TypicalInst;
+                return (EffectiveLowFlags & GenericsFlags.GenericsMask) == GenericsFlags.GenericsMask_TypicalInst;
             }
         }
 
-        /// <summary>
-        /// Gets a value determining whether or not the associated type has remoting VTS information.
-        /// </summary>
-        public bool HasRemotingVtsInfo
-        {
-            get
-            {
-                return GenericsFlags.HasFlag(GenericsFlags.HasRemotingVtsInfo);
-            }
-        }
+        /// <summary>Always false: remoting VTS state was removed from CoreCLR.</summary>
+        [Obsolete("Remoting VTS state does not exist in .NET 8 CoreCLR.")]
+        public bool HasRemotingVtsInfo => false;
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has variance.
+        ///     Gets a value determining whether or not the associated type has variance.
         /// </summary>
         public bool HasVariance
         {
             get
             {
-                return GenericsFlags.HasFlag(GenericsFlags.HasVariance);
+                return (EffectiveLowFlags & GenericsFlags.HasVariance) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has a default constuctor.
+        ///     Gets a value determining whether or not the associated type has a default constuctor.
         /// </summary>
         public bool HasDefaultCtor
         {
             get
             {
-                return GenericsFlags.HasFlag(GenericsFlags.HasDefaultCtor);
+                return (EffectiveLowFlags & GenericsFlags.HasDefaultCtor) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has precise init constructors.
+        ///     Gets a value determining whether or not the associated type has precise init constructors.
         /// </summary>
         public bool HasPreciseInitCtors
         {
             get
             {
-                return GenericsFlags.HasFlag(GenericsFlags.HasPreciseInitCctors);
+                return (EffectiveLowFlags & GenericsFlags.HasPreciseInitCctors) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is an HFA.
+        ///     Always false on the supported x64 ABIs, HFA is an ARM-only classification.
         /// </summary>
-        public bool IsHFA
-        {
-            get
-            {
-                return GenericsFlags.HasFlag(GenericsFlags.IsHFA);
-            }
-        }
+        public bool IsHFA => false;
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is a reference to a regular structure.
+        ///     Gets a value determining whether or not the associated struct type is passed
+        ///     in registers by the System V ABI. Only meaningful on Linux x64.
         /// </summary>
         public bool IsRegStructPassed
         {
             get
             {
-                return GenericsFlags.HasFlag(GenericsFlags.IsRegStructPassed);
+                return RuntimeSupport.IsLinux && (EffectiveLowFlags & GenericsFlags.IsRegStructPassed) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is passed like a by-ref.
+        ///     Gets a value determining whether or not the associated type is passed like a by-ref.
         /// </summary>
         public bool IsByRefLike
         {
             get
             {
-                return GenericsFlags.HasFlag(GenericsFlags.IsByRefLike);
+                return (EffectiveLowFlags & GenericsFlags.IsByRefLike) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has any per-instance information.
+        ///     Gets a value determining whether or not the associated type has any per-instance information.
         /// </summary>
         public bool HasPerInstInfo
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasPerInstInfo);
+                return (InterfaceFlags & InterfaceFlags.HasPerInstInfo) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has an InterfaceMap, the map length == NumInterfaces.
+        ///     Gets a value determining whether or not the associated type has an InterfaceMap, the map length == NumInterfaces.
         /// </summary>
         public bool HasInterfaceMap
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasInterfaceMap);
+                return (InterfaceFlags & InterfaceFlags.HasInterfaceMap) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has a dispatch map slot.
+        ///     Gets a value determining whether or not the associated type has a dispatch map slot.
         /// </summary>
         public bool HasDispatchMapSlot
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasDispatchMapSlot);
+                return (InterfaceFlags & InterfaceFlags.HasDispatchMapSlot) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has any non-virtual slots.
+        ///     Gets a value determining whether or not the associated type has any non-virtual slots.
         /// </summary>
         public bool HasNonVirtualSlots
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasNonVirtualSlots);
+                return (InterfaceFlags & InterfaceFlags.HasNonVirtualSlots) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has module overrides.
+        ///     Gets a value determining whether or not the associated type has module overrides.
         /// </summary>
         public bool HasModuleOverride
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasModuleOverride);
+                return (InterfaceFlags & InterfaceFlags.HasModuleOverride) != 0;
             }
         }
 
-        /// <summary>
-        /// Gets a value determining whether or not the associated type is zapped.
-        /// </summary>
-        public bool IsZapped
-        {
-            get
-            {
-                return InterfaceFlags.HasFlag(InterfaceFlags.IsZapped);
-            }
-        }
+        /// <summary>Always false: pre-restored/zapped state does not exist in .NET 8 flags2.</summary>
+        [Obsolete("The IsZapped/IsPreRestored flags do not exist in .NET 8 CoreCLR MethodTable flags2.")]
+        public bool IsZapped => false;
+
+        /// <summary>Always false: pre-restored/zapped state does not exist in .NET 8 flags2.</summary>
+        [Obsolete("The IsZapped/IsPreRestored flags do not exist in .NET 8 CoreCLR MethodTable flags2.")]
+        public bool IsPreRestored => false;
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is pre-restored.
-        /// </summary>
-        public bool IsPreRestored
-        {
-            get
-            {
-                return InterfaceFlags.HasFlag(InterfaceFlags.IsPreRestored);
-            }
-        }
-
-        /// <summary>
-        /// Gets a value determining whether or not the associated type depends on an external module.
+        ///     Gets a value determining whether or not the associated type depends on an external module.
         /// </summary>
         public bool HasModuleDependencies
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasModuleDependencies);
+                return (InterfaceFlags & InterfaceFlags.HasModuleDependencies) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is intrinsic.
+        ///     Gets a value determining whether or not the associated type is intrinsic.
         /// </summary>
         public bool IsIntrinsicType
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.IsIntrinsicType);
+                return (InterfaceFlags & InterfaceFlags.IsIntrinsicType) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type requires a fat dispatch token.
+        ///     Gets a value determining whether or not the associated type requires a fat dispatch token.
         /// </summary>
         public bool RequiresDispatchTokenFat
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.RequiresDispatchTokenFat);
+                return (InterfaceFlags & InterfaceFlags.RequiresDispatchTokenFat) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has any constructor.
+        ///     Gets a value determining whether or not the associated type has any constructor.
         /// </summary>
         public bool HasCctor
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasCctor);
+                return (InterfaceFlags & InterfaceFlags.HasCctor) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has a CCWTemplate, this only happens with COM exposed types.
+        ///     Gets a value determining whether or not the associated type has virtual static
+        ///     methods (e.g. on interfaces). Replaces the removed COM CCW-template flag.
         /// </summary>
-        public bool HasCCWTemplate
+        public bool HasVirtualStaticMethods
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasCCWTemplate);
+                return (InterfaceFlags & InterfaceFlags.HasVirtualStaticMethods) != 0;
             }
         }
 
+        /// <summary>Always throws: CCW templates do not exist without FEATURE_COMINTEROP.</summary>
+        [Obsolete("CCW templates are COM-only and do not exist in this MethodTable flag on .NET 8.")]
+        public bool HasCCWTemplate => throw new PlatformNotSupportedException();
+
         /// <summary>
-        /// Gets a value determining whether or not the associated type requires alignment of 8 bytes in memory.
+        ///     Gets a value determining whether or not the associated type requires alignment of 8 bytes in memory.
         /// </summary>
         public bool RequiresAlign8
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.RequiresAlign8);
+                return (InterfaceFlags & InterfaceFlags.RequiresAlign8) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type has boxed regular statics.
+        ///     Gets a value determining whether or not the associated type has boxed regular statics.
         /// </summary>
         public bool HasBoxedRegularStatics
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasBoxedRegularStatics);
+                return (InterfaceFlags & InterfaceFlags.HasBoxedRegularStatics) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type only has one non-virtual slot available.
+        ///     Gets a value determining whether or not the associated type only has one non-virtual slot available.
         /// </summary>
         public bool HasSingleNonVirtualSlot
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.HasSingleNonVirtualSlot);
+                return (InterfaceFlags & InterfaceFlags.HasSingleNonVirtualSlot) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type depends on equivalent or forwarded structs.
+        ///     Gets a value determining whether or not the associated type depends on equivalent or forwarded structs.
         /// </summary>
         public bool DependsOnEquivalentOrForwardedStructs
         {
             get
             {
-                return InterfaceFlags.HasFlag(InterfaceFlags.DependsOnEquivalentOrForwardedStructs);
+                return (InterfaceFlags & InterfaceFlags.DependsOnEquivalentOrForwardedStructs) != 0;
             }
         }
 
         /// <summary>
-        /// Gets a value determining whether or not the associated type is initialized before ever having been accessed.
+        ///     Gets a value determining whether or not the associated type is initialized before ever having been accessed.
         /// </summary>
         public bool IsClassPreInited
         {
@@ -1076,175 +977,125 @@ namespace Cassowary.Runtime.VM
             }
         }
 
+        /// <summary>
+        ///     Number of instance field bytes (BaseSize minus the EEClass padding), the same
+        ///     value native code uses for non-array object sizes.
+        /// </summary>
         public int GetNumInstanceFieldBytes()
         {
-            int baseInstanceFieldBytes = BaseSize - GetClass()->BaseSizePadding;
-
-            if (IsArray)
-                baseInstanceFieldBytes += CorDataOffsets.OFFSET_ARRAY;
-
-            if (IsString)
-                baseInstanceFieldBytes += CorDataOffsets.OFFSET_STRING;
-
-            return baseInstanceFieldBytes;
+            return BaseSize - GetClass()->BaseSizePadding;
         }
 
         /// <summary>
-        /// Gets the EEClass of this MethodTable, even if it does not have one in its union.
+        ///     Gets the EEClass of this MethodTable, following the canonical MethodTable when
+        ///     this is a shared generic instantiation (union tag removed before use).
         /// </summary>
         /// <returns>The EEClass of this MethodTable.</returns>
         public EEClass* GetClass()
         {
-            if (HasCanon)
-                return CanonMethodTable->GetClass();
-
-            return EEClass;
+            return GetCanonicalMethodTable()->EEClass;
         }
 
         /// <summary>
-        /// Gets the root MethodTable from the Canonical MethodTable.
+        ///     Gets the root MethodTable from the Canonical MethodTable.
         /// </summary>
         /// <returns>Root MethodTable.</returns>
         public MethodTable* GetRootCanonTable()
         {
             fixed (MethodTable* ptr = &this)
             {
-                if (!HasCanon)
-                    return ptr;
+                MethodTable* mt = ptr;
+                while (mt->HasCanon)
+                    mt = (MethodTable*)(mt->UnionRaw & ~UNION_MASK);
 
-                return CanonMethodTable->GetRootCanonTable();
+                return mt;
             }
         }
 
         /// <summary>
-        /// Gets the type of this MethodTable.
+        ///     Gets the type of this MethodTable.
         /// </summary>
         /// <returns>The type of this MethodTable.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Type AsType()
         {
+            RuntimeSupport.EnsureSupported();
+
             fixed (MethodTable* ptr = &this)
             {
-                // If this MethodTable exists then, clearly, the Type must also exist.
                 return Type.GetTypeFromHandle(RuntimeTypeHandle.FromIntPtr((nint)ptr)!)!;
             }
         }
 
         /// <summary>
-        /// Gets this MethodTable as an single-dimensional Array type.
-        /// </summary>
-        /// <returns>This MethodTable as a single-dimensional Array type.</returns>
-        public MethodTable* MakeArrayType()
-        {
-            dynamic rtType = Intrinsics.AsRuntimeType(AsType());
-            return FromType((Type)rtType.MakeArrayType());
-        }
-
-        /// <summary>
-        /// Gets this MethodTable as an multi-dimensional Array type.
-        /// </summary>
-        /// <param name="rank">The rank of the multi-dimensional Array type.</param>
-        /// <returns>This MethodTable as a multi-dimensional Array type with the provided rank.</returns>
-        public MethodTable* MakeArrayType(int rank)
-        {
-            dynamic rtType = Intrinsics.AsRuntimeType(AsType());
-            return FromType((Type)rtType.MakeArrayType(rank));
-        }
-
-        /// <summary>
-        /// Gets all interfaces that this MethodTable has.
+        ///     Gets all interfaces that this MethodTable has.
         /// </summary>
         /// <returns>All interfaces that this MethodTable has.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public MethodTable*[] GetInterfaces()
         {
-            if (!HasInterfaceMap)
+            if (!HasInterfaceMap || InterfaceMap == null)
                 return new MethodTable*[0];
 
             MethodTable*[] interfaces = new MethodTable*[NumInterfaces];
 
+            // m_pInterfaceMap is an array of InterfaceInfo_t, each of which starts with a
+            // single MethodTable pointer, load the pointer with pointer-size stride.
+            MethodTable** entries = (MethodTable**)InterfaceMap;
             for (int i = 0; i < NumInterfaces; i++)
-                interfaces[i] = InterfaceMap + i;
+                interfaces[i] = entries[i];
 
             return interfaces;
         }
 
         /// <summary>
-        /// Checks if this MethodTable is equivalent to the given MethodTable.
+        ///     Checks if this MethodTable is equivalent to the given MethodTable.
         /// </summary>
         /// <param name="pMT">The MethodTable to check if equivalent to.</param>
         /// <returns>True if this MethodTable is equivalent to the given MethodTable, otherwise false.</returns>
         public bool IsEquivalentTo(MethodTable* pMT)
         {
-            if (*pMT == this)
-                return true;
-
-            if (!pMT->HasTypeEquivalence || !HasTypeEquivalence)
-                return false;
-
-            if (pMT->GetClass()->CorElementType != GetClass()->CorElementType)
-                return false;
-
-            if (pMT->IsArray != IsArray ||
-                pMT->IsString != IsString ||
-                pMT->IsNullable != IsNullable ||
-                pMT->IsGenericInst != IsGenericInst)
-                return false;
-
-            if (GetRootCanonTable()->ElementMethodTable->IsEquivalentTo(pMT->GetRootCanonTable()->ElementMethodTable))
-                return true;
-
-            return false;
+            return AsType().IsEquivalentTo(pMT->AsType());
         }
 
         /// <summary>
-        /// Checks if this MethodTable has any interface implementations in common with the given MethodTable.        
+        ///     Checks if this MethodTable has any interface implementations in common with the given MethodTable.
         /// </summary>
         /// <param name="pMT">The MethodTable to check for commonalities with.</param>
         /// <returns>True if this MethodTable has any common interfaces, otherwise false.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public bool ImplementsCommonInterface(MethodTable* pMT)
         {
-            foreach (MethodTable* interfaceInfo in GetInterfaces())
-            {
-                foreach (MethodTable* interfaceInfoPMT in pMT->GetInterfaces())
-                {
-                    if (interfaceInfoPMT == interfaceInfo)
+            Type[] ours = AsType().GetInterfaces();
+            Type[] theirs = pMT->AsType().GetInterfaces();
+
+            foreach (Type o in ours)
+                foreach (Type t in theirs)
+                    if (o == t)
                         return true;
-                }
-            }
 
             return false;
         }
 
         /// <summary>
-        /// Checks if this MethodTable implements the given interface.     
+        ///     Checks if this MethodTable implements the given interface.
         /// </summary>
         /// <param name="pMT">The MethodTable to check if implemented.</param>
         /// <returns>True if this MethodTable implements the given interface, otherwise false.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public bool ImplementsInterface(MethodTable* pMT)
         {
-            foreach (MethodTable* interfaceInfo in GetInterfaces())
-            {
-                if (interfaceInfo == pMT)
-                    return true;
-            }
-
-            return false;
+            return pMT->AsType().IsInterface && pMT->AsType().IsAssignableFrom(AsType());
         }
 
         /// <summary>
-        /// Checks if this MethodTable implements any interface equivalent to the given interface.     
+        ///     Checks if this MethodTable implements any interface equivalent to the given interface.
         /// </summary>
-        /// <param name="pMT">The MethodTable to check if implemented.</param>
+        /// <param name="pMT">The MethodTable to check if implements an equivalent to.</param>
         /// <returns>True if this MethodTable implements an equivalent to the given interface, otherwise false.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public bool ImplementsEquivalentInterface(MethodTable* pMT)
         {
-            foreach (MethodTable* interfaceInfo in GetInterfaces())
+            foreach (Type implemented in AsType().GetInterfaces())
             {
-                if (interfaceInfo->IsEquivalentTo(pMT))
+                if (implemented.IsEquivalentTo(pMT->AsType()))
                     return true;
             }
 
@@ -1252,77 +1103,105 @@ namespace Cassowary.Runtime.VM
         }
 
         /// <summary>
-        /// Checks if this MethodTable can allocate an object.
+        ///     Checks if this MethodTable can allocate an object.
         /// </summary>
         /// <remarks>
-        /// Most types can allocate, but this method is does not exhaustively weed out those which shouldn't.
+        ///     Mirrors the managed allocation guards used by <see cref="AllocateNoChecks"/>,
+        ///     see the allocation methods for the concrete reject set.
         /// </remarks>
-        /// <returns>True if if this MethodTable can allocate an object, otherwise false.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool CanAllocate()
         {
-            // Void is unique, since it has been blacklisted for creation at compile-time.
-            // You *could* allocate a type that's TypedByRef but it's very unsafe without constructing it.
-            return !GetClass()->IsAbstract && !IsInterface && GetClass()->CorElementType != CorElementType.ELEMENT_TYPE_TYPEDBYREF && !IsVoid;
+            return IsAllocatableType(AsType());
         }
 
-        /// <summary>
-        /// Checks if this MethodTable can box from a pointer.
-        /// </summary>
-        /// <returns>True if if this MethodTable can box from a pointer, otherwise false.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool CanBox()
+        internal static bool IsAllocatableType(Type type)
         {
-            return CanAllocate();
-        }
-
-        /// <summary>
-        /// Checks if this MethodTable can box strictly from a pointer.
-        /// </summary>
-        /// <returns>True if if this MethodTable can box strictly from a pointer, otherwise false.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool CanBoxStrict()
-        {
-            return CanBox() && !ContainsPointers && !IsByRefLike && !IsAsyncPin && !IsInterface;
-        }
-
-        /// <summary>
-        /// Checks if this MethodTable can cast an object to the given Interface MethodTable.
-        /// </summary>
-        /// <param name="pMT">The MethodTable to check if can be casted to.</param>
-        /// <returns>True if this MethodTable can cast to the given MethodTable, otherwise false.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public bool CanCastToInterface(MethodTable* pMT)
-        {
-            if (IsEquivalentTo(pMT))
-                return true;
-
-            return ImplementsEquivalentInterface(pMT);
-        }
-
-        /// <summary>
-        /// Checks if this MethodTable can cast an object to the given MethodTable.
-        /// </summary>
-        /// <param name="pMT">The MethodTable to check if can be casted to.</param>
-        /// <returns>True if this MethodTable can cast to the given MethodTable, otherwise false.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
-        public bool CanCastTo(MethodTable* pMT)
-        {
-            if (pMT->IsArray && pMT->GetClass()->Rank != GetClass()->Rank)
+            // Reject every category that supported managed allocation cannot produce.
+            if (type.ContainsGenericParameters
+                || type.IsByRefLike
+                || type.IsInterface
+                || type.IsAbstract
+                || type.IsPointer
+                || type.IsByRef
+                || type.IsFunctionPointer
+                || type.IsGenericParameter
+                || type == typeof(void)
+                || type == typeof(TypedReference)
+                || type == typeof(RuntimeArgumentHandle)
+                || type == typeof(ArgIterator)
+                || typeof(Delegate).IsAssignableFrom(type))
                 return false;
 
-            if (pMT->IsInterface)
-                return CanCastToInterface(pMT);
+            if (type.IsArray)
+                return !type.GetElementType()!.ContainsGenericParameters;
 
-            // Not the same as CanCastToInterface, checks if pMT and this MethodTable share any interface that we could cast to.
-            if (ImplementsCommonInterface(pMT))
+            if (type == typeof(string))
                 return true;
 
-            return IsEquivalentTo(pMT);
+            return type.IsValueType || type.IsClass;
         }
 
         /// <summary>
-        /// Initializes the type associated with this MethodTable if it has not already.
+        ///     Checks if this MethodTable can box from a pointer.
+        /// </summary>
+        public bool CanBox()
+        {
+            return IsBoxableType(AsType());
+        }
+
+        /// <summary>
+        ///     Checks if this MethodTable can box strictly from a pointer.
+        /// </summary>
+        public bool CanBoxStrict()
+        {
+            return IsBoxableType(AsType());
+        }
+
+        internal static bool IsBoxableType(Type type)
+        {
+            // Only closed, non-byref-like value types without GC references can be safely
+            // copied from raw storage. Nullable<T> is included (boxing handles empty/populated).
+            return type.IsValueType
+                && type != typeof(void)
+                && !type.ContainsGenericParameters
+                && !type.IsByRefLike
+                && !ContainsReferencesHelper(type);
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, bool> s_containsRefs = new();
+
+        internal static bool ContainsReferencesHelper(Type type)
+        {
+            return s_containsRefs.GetOrAdd(type,
+                t => (bool)s_isReferenceOrContainsReferences.MakeGenericMethod(t).Invoke(null, null)!);
+        }
+
+        private static readonly MethodInfo s_isReferenceOrContainsReferences =
+            typeof(MethodTable).GetMethod(nameof(IsReferenceOrContainsReferences),
+                BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        private static bool IsReferenceOrContainsReferences<T>() => RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+
+        /// <summary>
+        ///     Checks if this MethodTable can cast an object to the given Interface MethodTable.
+        /// </summary>
+        public bool CanCastToInterface(MethodTable* pMT)
+        {
+            return pMT->AsType().IsInterface && pMT->AsType().IsAssignableFrom(AsType());
+        }
+
+        /// <summary>
+        ///     Checks if this MethodTable can cast an object to the given MethodTable.
+        ///     Delegates to the runtime's own assignability rules (covers inheritance,
+        ///     interfaces, variance, and array covariance).
+        /// </summary>
+        public bool CanCastTo(MethodTable* pMT)
+        {
+            return pMT->AsType().IsAssignableFrom(AsType());
+        }
+
+        /// <summary>
+        ///     Initializes the type associated with this MethodTable if it has not already.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Initialize()
@@ -1331,60 +1210,38 @@ namespace Cassowary.Runtime.VM
         }
 
         /// <summary>
-        /// Constructs on the given object of this MethodTable with the given parameters.
+        ///     Constructs on the given object of this MethodTable with the given parameters.
         /// </summary>
-        /// <remarks>
-        /// This does not ensure that the provided object is the same type as the associated type of this MethodTable, and should be checked before calling.
-        /// </remarks>
         /// <param name="instance">The object to be constructed.</param>
         /// <param name="parameters">The parameters for the object's constructor.</param>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public void Construct<T>(ref T instance, params object[] parameters)
         {
-            Type[] parameterTypes = new Type[parameters.Length];
-
-            for (int i = 0; i < parameters.Length; i++)
-                parameterTypes[i] = parameters[i].GetType();
-
-            // I really don't care if the constructor doesn't exist, it will throw eventually.
-            ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes)!;
-            instance = (T)new Signature(ctorInfo).Invoke(ref instance, parameters);
+            ConstructorInfo ctorInfo = FindConstructor(parameters);
+            new Signature(ctorInfo).Invoke(ref instance, parameters);
         }
 
         /// <summary>
-        /// Constructs this MethodTable with the given parameters.
+        ///     Constructs this MethodTable with the given parameters.
         /// </summary>
-        /// <remarks>
-        /// To construct on an object use <see cref="Construct{T}(ref T, object[])"/>.
-        /// </remarks>
         /// <param name="parameters">The parameters for the object's constructor.</param>
         [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
         public object Construct(params object[] parameters)
         {
+            ConstructorInfo ctorInfo = FindConstructor(parameters);
+            return new Signature(ctorInfo).Invoke(parameters);
+        }
+
+        private ConstructorInfo FindConstructor(object[] parameters)
+        {
             Type[] parameterTypes = new Type[parameters.Length];
 
             for (int i = 0; i < parameters.Length; i++)
                 parameterTypes[i] = parameters[i].GetType();
 
-            // I really don't care if the constructor doesn't exist, it will throw eventually.
-            ConstructorInfo ctorInfo = AsType().GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, parameterTypes)!;
-            return new Signature(ctorInfo).Invoke(parameters);
-        }
-
-        public static bool operator ==(MethodTable methodTable, object obj)
-        {
-            if (obj is not MethodTable)
-                return false;
-
-            return methodTable.Equals(obj);
-        }
-
-        public static bool operator !=(MethodTable methodTable, object obj)
-        {
-            if (obj is not MethodTable)
-                return true;
-
-            return !methodTable.Equals(obj);
+            return AsType().GetConstructor(
+                       BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                       parameterTypes)!;
         }
 
         public override string ToString()
